@@ -341,11 +341,11 @@ RAG/
 - 最后更新：2026-07-22
 - 当前计划：`plan.md`
 - 当前阶段：第 1 天进行中
-- 当前任务：完成“参数知识与 Retrieved Context 冲突”最小实验，验证 LLM 如何采用外部上下文
-- 已完成任务：已完成课前文章、三项精选资料和第 1 天 RAG 数据流模块；能够区分向量记录与索引、Retrieval Query 与原始问题、Context Packing 与 Prompt Builder，并已完成水印传播链分析
-- 当前交付物：已创建学习计划、项目文档、RAG 知识地图、知识章节式 Day 1 笔记与 RAG© 论文笔记
-- 当前薄弱点：尚未通过实际 Trace 验证参数知识冲突、上下文顺序、Temperature 和拒答行为；尚未实现透明 Vanilla RAG
-- 下一步：先完成一个四条件的知识冲突最小实验，再实现带完整 Trace 的 Dense Vanilla RAG
+- 当前任务：总结精确字符串、语义信息和推理路径三类验证信号，以及不同 CoT 可见性对黑盒验证的影响
+- 已完成任务：已完成课前文章、三项精选资料、第 1 天 RAG 数据流模块和参数知识冲突 A—F 最小实验；能够区分向量记录与索引、Retrieval Query 与原始问题、Context Packing 与 Prompt Builder，并已完成水印传播链分析
+- 当前交付物：已创建学习计划、项目文档、RAG 知识地图、知识章节式 Day 1 笔记、RAG© 论文笔记与参数知识冲突实验报告
+- 当前薄弱点：尚未形成三类版权验证信号及 CoT 可见性的结构化比较；尚未实现透明 Vanilla RAG
+- 下一步：完成三类验证信号与 CoT 可见性的综合总结，再实现带完整 Trace 的 Dense Vanilla RAG
 - Git 状态：已初始化 `main` 分支并跟踪 `origin/main`；初始学习计划和维护文档已提交并推送
 
 ## 变更记录
@@ -360,3 +360,4 @@ RAG/
 - 2026-07-22：参考 `PyTorch-Notes/AGENTS.md` 与现有章节，确立“知识章节而非学习轨迹”的笔记规范，并重构 Day 1 笔记。
 - 2026-07-22：整理仓库结构，`notes/` 仅保留编号 Markdown 笔记与 `assets/`，删除无内容的分类占位目录和可再生成的临时 PDF 产物。
 - 2026-07-22：根据用户对数据流和组件边界的掌握情况，完成 Day 1 数据流模块；将 LLM 协同知识合并为综合实验，并把 Query Rewrite 对照移至 Day 3 编排阶段，Day 1 保持透明 Dense RAG 基线。
+- 2026-07-22：完成参数知识与 Retrieved Context 冲突的 A—F 最小实验；按用户决定跳过 Temperature 消融，并将实测结果、机制结论和局限保存到 `results/`。

@@ -33,7 +33,7 @@
 | 项目 | 状态 |
 |---|---|
 | 当前阶段 | 第 1 天进行中 |
-| 当前任务 | 参数知识与 Retrieved Context 冲突最小实验 |
+| 当前任务 | 三类验证信号与 CoT 可见性总结 |
 | 下一交付物 | 透明 Vanilla RAG、20 条 Trace、基础实验结果 |
 | 详细计划 | [plan.md](./plan.md) |
 | 研究主线 | RAG 知识库版权保护与所有权验证 |
@@ -68,6 +68,8 @@ RAG/
 │   ├── 01-rag-data-flow.md   # RAG 数据流与 LLM 协同
 │   ├── 02-ragc-paper.md      # RAG© 论文笔记
 │   └── assets/               # 笔记引用的小型图片和附件
+├── results/
+│   └── day1_context_conflict.md # 参数知识与检索上下文冲突实验
 └── .gitignore                # 缓存、临时文件和大型产物规则
 ```
 
@@ -116,6 +118,7 @@ RAG/
 
 ## 最近更新
 
+- 2026-07-22：完成 Gemini 参数知识与 Retrieved Context 冲突实验，记录 System 指令、上下文顺序和拒答行为；
 - 2026-07-22：完成 Day 1 RAG 数据流模块，后续集中进行知识冲突实验、透明 Dense RAG 和故障归因；
 - 2026-07-22：整理仓库结构，将知识章节直接放入 `notes/`、附件迁入 `notes/assets/`，并清理旧配置与临时 PDF 产物；
 - 2026-07-22：建立 7 天学习计划；

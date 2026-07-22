@@ -108,8 +108,10 @@ rag-copyright-lab/
 
 > 2026-07-22 动态调整：基础组件边界已经掌握，不再逐项问答。将原六个知识点合并为两个有输出的综合任务，通过小实验和自由总结验收。
 
-- [ ] 完成一个“参数知识与 Retrieved Context 冲突”最小实验，比较无上下文、正确上下文、错误上下文和冲突上下文，并观察 System 指令、上下文顺序、Temperature 与拒答行为；据此解释 In-context Learning。
+- [x] 完成一个“参数知识与 Retrieved Context 冲突”最小实验，比较无上下文、正确上下文、错误上下文和冲突上下文，并观察 System 指令、上下文顺序与拒答行为；据此解释 In-context Learning。
 - [ ] 用一段结构化总结比较精确字符串、语义信息和推理路径三类验证信号，并说明显式 CoT、推理摘要和隐藏推理对黑盒验证的影响。
+
+完成依据：使用 `gemini-3.1-pro-preview` 在 Temperature 0 下完成 A—F 六个条件，结果与局限记录于 `results/day1_context_conflict.md`。按用户决定，本轮跳过 Temperature 消融，不将其结果作为本任务验收条件。
 
 #### 1:45-3:45：手写透明 Vanilla RAG
 
