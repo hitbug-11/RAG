@@ -64,19 +64,19 @@ RAG 和微调解决的问题有重叠，但侧重点不同。
 - 离线数据管线：把原始文档加工成可检索的知识库。
 - 在线应用管线：根据用户查询检索证据并生成答案。
 
-下面以使用向量检索的 Dense RAG 为例。图中每个步骤节点的第二行给出该步骤的输出样例；BM25 与 Hybrid Retrieval 的索引分支将在后文单独讨论。
+下面以使用向量检索的 Dense RAG 为例；BM25 与 Hybrid Retrieval 的索引分支将在后文单独讨论。
 
 ```mermaid
 flowchart TB
     subgraph OFFLINE["离线：知识库构建"]
-        D["原始文档<br/>售后政策.pdf，第 3 页"]
-        P["解析、清洗与格式化<br/>干净文本：签收后 7 天内可申请退款……"]
-        CM["文本切分并绑定 Metadata<br/>chunk-008；page=3；section=退款时限"]
-        E["文档 Embedding<br/>[0.021, -0.184, 0.093, ...]"]
-        REC["构造向量记录<br/>ID + Vector + Text + Metadata"]
-        DB["写入向量数据库<br/>可持久化、可过滤的向量记录"]
-        ANN["建立或更新 ANN 索引<br/>HNSW / IVF 近邻搜索结构"]
-        DS["独立文档存储（可选）<br/>chunk_id → Text + Metadata"]
+        D["原始文档"]
+        P["解析、清洗与格式化"]
+        CM["文本切分并绑定 Metadata"]
+        E["文档 Embedding"]
+        REC["构造向量记录"]
+        DB["写入向量数据库"]
+        ANN["建立或更新 ANN 索引"]
+        DS["独立文档存储（可选）"]
 
         D --> P --> CM
         CM -->|仅编码 Text 或选定字段| E
@@ -87,18 +87,18 @@ flowchart TB
     end
 
     subgraph ONLINE["在线：查询与生成"]
-        Q["用户查询<br/>签收后多久可以申请无理由退款？"]
-        QP["查询处理（可选）<br/>商品签收后无理由退款期限"]
-        QE["查询 Embedding<br/>[0.018, -0.171, 0.087, ...]"]
-        RET["ANN 相似度搜索<br/>Top-N chunk_id + score"]
-        FETCH["按 ID 取回候选记录<br/>Top-N Text + Metadata + score"]
-        RR["Reranker（可选）<br/>重新计算候选相关性"]
-        TOPK["排序后的 Top-k Chunks<br/>Top-1：退款期限；Top-2：退款到账"]
-        CP["Context Packing<br/>[售后政策，第 3 页] + 证据文本"]
-        PB["Prompt Builder<br/>系统指令 + Context + 原始用户问题"]
-        G["Generator / LLM<br/>答案草稿或拒答"]
-        POST["引用与后处理<br/>映射来源、格式化与安全检查"]
-        O["最终响应<br/>7 天内可申请；来源：售后政策第 3 页"]
+        Q["用户查询"]
+        QP["查询处理（可选）"]
+        QE["查询 Embedding"]
+        RET["ANN 相似度搜索"]
+        FETCH["按 ID 取回候选记录"]
+        RR["Reranker（可选）"]
+        TOPK["排序后的 Top-k Chunks"]
+        CP["Context Packing"]
+        PB["Prompt Builder"]
+        G["Generator / LLM"]
+        POST["引用与后处理"]
+        O["最终响应"]
 
         Q --> QP --> QE --> RET
         ANN --> RET
