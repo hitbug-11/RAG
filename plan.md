@@ -109,9 +109,10 @@ rag-copyright-lab/
 > 2026-07-22 动态调整：基础组件边界已经掌握，不再逐项问答。将原六个知识点合并为两个有输出的综合任务，通过小实验和自由总结验收。
 
 - [x] 完成一个“参数知识与 Retrieved Context 冲突”最小实验，比较无上下文、正确上下文、错误上下文和冲突上下文，并观察 System 指令、上下文顺序与拒答行为；据此解释 In-context Learning。
-- [ ] 用一段结构化总结比较精确字符串、语义信息和推理路径三类验证信号，并说明显式 CoT、推理摘要和隐藏推理对黑盒验证的影响。
 
 完成依据：使用 `gemini-3.1-pro-preview` 在 Temperature 0 下完成 A—F 六个条件，结果与局限记录于 `results/day1_context_conflict.md`。按用户决定，本轮跳过 Temperature 消融，不将其结果作为本任务验收条件。
+
+三类验证信号与 CoT 可见性的比较移至第 4 天 RAG© 目标推理检测阶段，与实际 Detector 一起学习，避免在尚未实现 RAG 基线时继续堆叠抽象概念。
 
 #### 1:45-3:45：手写透明 Vanilla RAG
 
@@ -157,6 +158,17 @@ Query Rewrite 前后对照移至第 3 天，与 Multi-query、Context Compressio
 ### 验收标准
 
 能够判断一次错误来自 Retriever、Context Packing、Prompt 还是 Generator。
+
+### 第 1 个学习日收尾与承接
+
+> 2026-07-23：用户决定第 1 个学习日到此结束。已经完成 RAG 数据流、原始 RAG 模型理解、上下文组织边界和参数知识冲突实验；透明 Vanilla RAG、20 条基线 Trace 与故障归因尚未完成，因此本计划模块保持“进行中”，不提前标记完成。
+
+第 2 个学习日先承接以下任务，再进入“第 2 天：先进检索与水印检索几何”：
+
+1. 手写透明 Dense Vanilla RAG，保存全部中间对象；
+2. 使用至少 5 个问题运行四种上下文条件，形成至少 20 条 Trace；
+3. 对至少 2 个失败案例完成 Retriever、Context Packing、Prompt 与 Generator 归因；
+4. 如有剩余时间，开始 BM25、Dense Retrieval、相似度与 ANN 原理。
 
 ## 5. 第 2 天：先进检索与水印检索几何
 
@@ -313,6 +325,8 @@ Query Rewrite 前后对照移至第 3 天，与 Multi-query、Context Compressio
 
 实现并比较：
 
+- [ ] 比较精确字符串、语义信息和推理路径三类验证信号；
+- [ ] 说明显式 CoT、推理摘要和隐藏推理对黑盒验证的影响；
 - [ ] 关键词和实体覆盖率；
 - [ ] Sentence Embedding 相似度；
 - [ ] LLM Judge；
