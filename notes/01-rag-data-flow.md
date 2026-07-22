@@ -67,39 +67,32 @@ RAG 和微调解决的问题有重叠，但侧重点不同。
 ```mermaid
 flowchart TB
     subgraph OFFLINE["离线：知识库构建"]
-        D["原始文档"] --> P["解析、清洗与格式化"]
-        P --> C["文本切分"]
-        C --> CM["Chunk + Metadata"]
+        D["输入：原始文档<br/>售后政策.pdf，第 3 页"]
+        P["第 1 步：解析与清洗<br/>输出：退款时限；签收后 7 天内可申请退款……"]
+        CM["第 2 步：切分并绑定 Metadata<br/>输出：chunk-008；page=3；section=退款时限"]
+        E["第 3 步：文档 Embedding<br/>输出：[0.021, -0.184, 0.093, ...]"]
+        DB["第 4 步：构造记录、写入数据库并建立索引<br/>输出：ID + Vector + Text + Metadata；HNSW 索引"]
 
-        CM --> E["Embedding 模型"]
-        E --> V["Chunk Vector"]
-
-        CM --> REC["构造向量记录"]
-        V --> REC
-        REC --> DB["写入向量数据库<br/>ID + Vector + Text/引用 + Metadata"]
-        DB --> ANN["构建 ANN 向量索引"]
-
-        CM --> DS["文档存储（可选）"]
+        D --> P --> CM --> E --> DB
+        CM -->|提供 Text 与 Metadata| DB
     end
 
     subgraph ONLINE["在线：查询与生成"]
-        Q["用户查询"] --> QP["查询预处理"]
-        QP --> QE["查询 Embedding"]
-        QE --> QV["Query Vector"]
+        Q["输入：用户查询<br/>签收后多久可以申请无理由退款？"]
+        QP["第 1 步：查询处理<br/>输出：商品签收后无理由退款期限"]
+        QE["第 2 步：查询 Embedding<br/>输出：[0.018, -0.171, 0.087, ...]"]
+        RET["第 3 步：Retriever 候选召回<br/>输出：Top-3 Chunks + 相似度分数"]
+        RR["第 4 步：Reranker 精排<br/>输出：Top-1 退款期限；Top-2 退款到账"]
+        PB["第 5 步：组织 Context 并构造 Prompt<br/>输出：系统要求 + [售后政策，第 3 页] + 用户问题"]
+        O["第 6 步：生成、引用与后处理<br/>输出：7 天内可申请 +《售后政策》第 3 页"]
 
-        QV --> RET["向量相似度检索"]
-        ANN --> RET
+        Q --> QP --> QE --> RET
         DB --> RET
-        DS --> RET
-
-        RET --> TOPK["Top-K Chunk + Metadata"]
-        TOPK --> RR["Reranker 精排"]
-        RR --> CP["Context Packing"]
-        CP --> PB["Prompt Builder"]
-        PB --> G["Generator / LLM"]
-        G --> O["答案、引用或拒答"]
+        RET --> RR --> PB --> O
     end
 ```
+
+图中每个步骤节点的第一行是系统执行的处理，第二行是该处理完成后得到的数据样例。离线管线只需在文档新增或更新时运行；在线管线则会在每次用户查询时运行。
 
 ### 离线数据管线
 
