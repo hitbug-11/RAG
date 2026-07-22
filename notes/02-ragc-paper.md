@@ -1,17 +1,3 @@
----
-type: paper
-status: reference-prepared
-title: Towards Copyright Protection for Knowledge Bases of Retrieval-augmented Language Models via Ownership Verification with Reasoning
-year: 2025
-arxiv: "2502.10440"
-tags:
-  - rag
-  - copyright-protection
-  - watermarking
-  - ownership-verification
-updated: 2026-07-22
----
-
 # RAG©：基于推理的 RAG 知识库所有权验证
 
 ## 在已有知识中的定位
@@ -120,17 +106,17 @@ flowchart LR
 - 不可观察 CoT 条件下的替代验证信号；
 - 局部知识库盗用比例与统计功效之间的关系。
 
-## 待验证问题
+## 研究问题
 
-- [ ] 复现 RAG©-L 的最小版本；
-- [ ] 比较规则、Embedding 与 LLM Judge；
-- [ ] 检查水印在 BM25、Dense、Hybrid 和 Reranker 间的迁移；
-- [ ] 检查仅返回短答案时 VSR 如何变化；
-- [ ] 检查重新切分和释义改写后的水印存活率。
+- 复现 RAG©-L 的最小版本；
+- 比较规则、Embedding 与 LLM Judge；
+- 检查水印在 BM25、Dense、Hybrid 和 Reranker 间的迁移；
+- 检查仅返回短答案时 VSR 如何变化；
+- 检查重新切分和释义改写后的水印存活率。
 
-## 资料
+## 参考资料
 
-- 本地论文：`../../../LLM/paper/2502.10440v1.pdf`（仓库外本地路径）
+- 本地论文：`../../LLM/paper/2502.10440v1.pdf`（仓库外本地路径）
 - [arXiv:2502.10440](https://arxiv.org/abs/2502.10440)
-- [RAG 知识地图](../00-RAG知识地图.md)
-- [详细学习计划](../../plan.md)
+- [RAG 知识地图](./00-RAG知识地图.md)
+- [详细学习计划](../plan.md)

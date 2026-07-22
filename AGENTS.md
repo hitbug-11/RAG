@@ -171,9 +171,9 @@ notes/
 - 默认使用标准 Markdown 链接，以兼容 Obsidian 与 GitHub；
 - YAML Properties 仅在确有检索价值时使用，不记录学习进度或掌握状态；
 - 复杂组件关系优先使用 Mermaid，数学表达使用 MathJax/LaTeX；
-- 按学习阶段编号的知识章节直接放入 `notes/`；概念、论文、实验、研究问题和附件分别进入对应目录；
-- 当章节中的概念形成稳定理解后，将其提炼为 `notes/concepts/` 下的独立笔记；
-- 创建新笔记时复用 `notes/templates/`，并补充与已有笔记的关系；
+- `notes/` 只存放按学习阶段编号的 Markdown 知识笔记，唯一子目录为用户指定的 `notes/assets/`；
+- 模板统一放在仓库根目录 `templates/`，实验代码、结果和配置放各自的根目录专用目录；
+- 当章节中的概念形成稳定理解后，直接在 `notes/` 下新增编号知识笔记，并补充与已有笔记的关系；
 - Obsidian 个人窗口布局、主题、插件状态和 Graph 显示偏好不提交到 Git；
 - Codex 不覆盖用户正在编辑的 Obsidian 文件；修改前检查工作树，发现并发变化时先合并或说明；
 - `plan.md` 负责详细任务状态，知识地图负责知识关系，README 负责公开进度，三者保持一致。
@@ -230,13 +230,9 @@ RAG/
 │   ├── watermarked/          # 水印样本或生成脚本
 │   ├── attacked/             # 攻击后样本或生成脚本
 │   └── eval/                 # 评测问题与标注
-├── notes/                    # 系统知识章节、论文笔记与研究记录
-│   ├── assets/               # 笔记引用的小型图片和附件
-│   ├── concepts/             # 原子概念笔记
-│   ├── papers/               # 论文阅读与批判性分析
-│   ├── experiments/          # 实验设置、结果和失败案例
-│   ├── research-ideas/       # 研究问题与假设
-│   └── templates/            # 知识章节和研究模板
+├── notes/                    # 编号知识章节与论文笔记
+│   └── assets/               # 笔记引用的小型图片和附件
+├── templates/                # 知识章节和研究模板
 ├── src/
 │   ├── ingestion/            # 文档加载和切分
 │   ├── retrievers/           # BM25、Dense、Hybrid
@@ -379,3 +375,4 @@ RAG/
 - 2026-07-22：根据用户反馈，将教学方式调整为资源导读、自由总结、笔记整理和实验验证，减少连续的碎片化问答。
 - 2026-07-22：参考 `PyTorch-Notes/AGENTS.md` 与现有章节，确立“知识章节而非学习轨迹”的笔记规范，并重构 Day 1 笔记和章节模板。
 - 2026-07-22：整理仓库结构，将 Day 1 知识章节移至 `notes/01-rag-data-flow.md`、附件目录移至 `notes/assets/`，删除不再使用的 Daily Notes 配置和可再生成的临时 PDF 产物。
+- 2026-07-22：纠正笔记目录边界：`notes/` 仅保留编号 Markdown 笔记与 `assets/`，模板迁至仓库根目录，删除无内容的分类占位目录。

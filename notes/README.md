@@ -6,21 +6,15 @@
 
 - [RAG 知识地图](./00-RAG知识地图.md)
 - [RAG 数据流与 LLM 协同](./01-rag-data-flow.md)
-- [RAG© 论文笔记](./papers/RAGC.md)
-- [概念笔记](./concepts/README.md)
-- [实验笔记](./experiments/README.md)
-- [研究问题](./research-ideas/README.md)
+- [RAG© 论文笔记](./02-ragc-paper.md)
 
 ## 目录约定
 
 | 目录 | 用途 |
 |---|---|
-| 根目录章节 | 按学习阶段编号的系统知识笔记，例如 `01-rag-data-flow.md` |
+| `*.md` | 按学习顺序编号的知识章节和论文笔记 |
 | `assets/` | 笔记引用的小型图片、图表和必要附件 |
-| `concepts/` | 单个概念的长期笔记 |
-| `papers/` | 论文阅读与批判性分析 |
-| `experiments/` | 实验设置、结果和失败案例 |
-| `research-ideas/` | 研究假设、选题和开放问题 |
-| `templates/` | Obsidian 知识章节、概念、论文和实验模板 |
+
+模板不是笔记，统一放在仓库根目录的 [`templates/`](../templates/)；实验代码、配置、结果和研究提案将在首次使用时分别创建根目录下的专用目录。
 
 详细学习任务及完成状态以仓库根目录的 [plan.md](../plan.md) 为准。

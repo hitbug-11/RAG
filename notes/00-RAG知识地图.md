@@ -82,10 +82,7 @@ flowchart TB
 
 - [详细学习计划](../plan.md)
 - [RAG 数据流与 LLM 协同](./01-rag-data-flow.md)
-- [RAG© 论文笔记](./papers/RAGC.md)
-- [概念笔记索引](./concepts/README.md)
-- [实验笔记索引](./experiments/README.md)
-- [研究问题索引](./research-ideas/README.md)
+- [RAG© 论文笔记](./02-ragc-paper.md)
 
 ## 5. 当前状态
 

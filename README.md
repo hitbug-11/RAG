@@ -68,12 +68,9 @@ RAG/
 ├── notes/
 │   ├── 00-RAG知识地图.md      # Obsidian 主入口
 │   ├── 01-rag-data-flow.md   # RAG 数据流与 LLM 协同
-│   ├── assets/               # 笔记引用的小型图片和附件
-│   ├── concepts/             # 原子概念笔记
-│   ├── papers/               # 论文阅读笔记
-│   ├── experiments/          # 实验记录
-│   ├── research-ideas/       # 研究问题
-│   └── templates/            # Obsidian 知识章节与研究模板
+│   ├── 02-ragc-paper.md      # RAG© 论文笔记
+│   └── assets/               # 笔记引用的小型图片和附件
+├── templates/                # Obsidian 知识章节与研究模板
 └── .gitignore                # 缓存、临时文件和大型产物规则
 ```
 
@@ -88,7 +85,7 @@ RAG/
 - 使用标准 Markdown 链接；
 - 自动更新内部链接；
 - 按学习阶段组织的知识章节直接放入 `notes/`，正文不记录进度轨迹；
-- 模板目录为 `notes/templates/`；
+- 模板目录为根目录 `templates/`；
 - Git、缓存、模型和本地大型数据不进入 Obsidian 搜索。
 
 个人窗口布局、主题、插件状态和 Graph 显示偏好不会提交到 Git。
