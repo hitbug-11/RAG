@@ -66,41 +66,134 @@ RAG 和微调解决的问题有重叠，但侧重点不同。
 
 ```mermaid
 flowchart TB
-    subgraph OFFLINE["离线数据管线"]
-        D["原始文档"] --> P["解析与清洗"]
-        P --> C["Chunk + Metadata"]
-        C --> E["Embedding"]
-        E --> I["向量索引 / 倒排索引"]
-        C --> S["文档存储"]
+    subgraph OFFLINE["离线：知识库构建"]
+        D["原始文档"] --> P["解析、清洗与格式化"]
+        P --> C["文本切分"]
+        C --> CM["Chunk + Metadata"]
+
+        CM --> E["Embedding 模型"]
+        E --> V["Chunk Vector"]
+
+        CM --> REC["构造向量记录"]
+        V --> REC
+        REC --> DB["写入向量数据库<br/>ID + Vector + Text/引用 + Metadata"]
+        DB --> ANN["构建 ANN 向量索引"]
+
+        CM --> DS["文档存储（可选）"]
     end
 
-    subgraph ONLINE["在线应用管线"]
-        Q["用户查询"] --> QP["查询处理"]
-        QP --> R["Retriever 候选召回"]
-        I --> R
-        S --> R
-        R --> RR["Reranker 精排"]
+    subgraph ONLINE["在线：查询与生成"]
+        Q["用户查询"] --> QP["查询预处理"]
+        QP --> QE["查询 Embedding"]
+        QE --> QV["Query Vector"]
+
+        QV --> RET["向量相似度检索"]
+        ANN --> RET
+        DB --> RET
+        DS --> RET
+
+        RET --> TOPK["Top-K Chunk + Metadata"]
+        TOPK --> RR["Reranker 精排"]
         RR --> CP["Context Packing"]
         CP --> PB["Prompt Builder"]
-        PB --> G["Generator"]
-        G --> O["答案 / 引用 / 拒答"]
+        PB --> G["Generator / LLM"]
+        G --> O["答案、引用或拒答"]
     end
 ```
 
 ### 离线数据管线
 
-离线阶段的输入不是已经整理好的向量，而是 PDF、Word、HTML、Markdown、数据库记录等原始数据。主要步骤如下。
+离线阶段不是直接把整份 PDF 交给 Embedding 模型，而是逐步把原始文档加工成可检索的记录。下面用一份虚构的售后政策文档贯穿整个过程。
 
-| 阶段 | 输入 | 处理 | 输出 |
-| --- | --- | --- | --- |
-| 加载 | 文件、网页、数据库记录 | 读取数据和基础属性 | 原始文档对象 |
-| 解析 | 原始文档 | 提取正文、标题、表格和结构 | 结构化文本 |
-| 清洗 | 结构化文本 | 删除噪声、修复编码、规范格式 | 干净文本 |
-| 切分 | 干净文本 | 按长度、结构或语义拆分 | Chunks |
-| 元数据构造 | Chunk 与来源信息 | 记录文档 ID、位置、标题、权限等 | Chunk + Metadata |
-| Embedding | Chunk 文本 | 使用 Embedding 模型编码 | 稠密向量 |
-| 建立索引 | 文本、向量和元数据 | 建立向量索引、倒排索引或混合索引 | 可检索索引 |
-| 持久化 | Chunk 与索引 | 保存正文、向量和映射关系 | 知识库快照 |
+**原始输入**
+
+假设知识库中有文件 `售后政策.pdf`，第 3 页包含：
+
+```text
+退款时限
+用户可在商品签收后 7 天内申请无理由退款。定制商品除外。
+```
+
+**第一步：解析与清洗**
+
+解析器从 PDF 中提取文字和页码；清洗程序去掉页眉、页脚、乱码和多余换行。此时数据仍然是人能阅读的文本：
+
+```python
+document = {
+    "document_id": "after-sales-policy",
+    "text": "退款时限\n用户可在商品签收后 7 天内申请无理由退款。定制商品除外。",
+    "source": "售后政策.pdf",
+    "page": 3,
+}
+```
+
+**第二步：切分并绑定 Metadata**
+
+长文档会被拆成多个 Chunk。每个 Chunk 都要保留来源信息，否则检索后无法引用原文或定位错误：
+
+```python
+chunk = {
+    "chunk_id": "after-sales-policy#chunk-008",
+    "text": "用户可在商品签收后 7 天内申请无理由退款。定制商品除外。",
+    "metadata": {
+        "document_id": "after-sales-policy",
+        "title": "售后政策",
+        "section": "退款时限",
+        "page": 3,
+        "source": "售后政策.pdf",
+    },
+}
+```
+
+这里的 `text` 是知识本身，`metadata` 说明知识来自哪里。`Chunk + Metadata` 表示两者绑定成一条记录，不是进行数学加法。
+
+**第三步：生成向量**
+
+Embedding 模型通常读取 `chunk["text"]`，输出固定维度的浮点数数组。下面只展示前几个数：
+
+```text
+输入："用户可在商品签收后 7 天内申请无理由退款。定制商品除外。"
+
+输出：[0.021, -0.184, 0.093, 0.317, ...]
+       └────────────── 例如共 768 维 ──────────────┘
+```
+
+向量是文本的检索表示，不能代替原文供人阅读，也通常不能可靠地还原为原文。
+
+**第四步：写入向量数据库并建立索引**
+
+系统把前面的信息合并为一条向量记录：
+
+```python
+vector_record = {
+    "id": "after-sales-policy#chunk-008",
+    "vector": [0.021, -0.184, 0.093, 0.317, ...],
+    "text": "用户可在商品签收后 7 天内申请无理由退款。定制商品除外。",
+    "metadata": {
+        "document_id": "after-sales-policy",
+        "section": "退款时限",
+        "page": 3,
+        "source": "售后政策.pdf",
+    },
+}
+```
+
+向量数据库保存这些记录，并建立 HNSW、IVF 等 ANN 索引，以便在大量向量中快速寻找近邻。因此需要区分：
+
+- **向量记录**保存 `ID + Vector + Text/文本引用 + Metadata`；
+- **向量索引**是加速相似度搜索的数据结构；
+- **向量数据库**负责记录存储、索引、过滤和查询等完整能力。
+
+至此，一份原始文档才真正变成了可供在线检索的知识库内容：
+
+```text
+原始 PDF
+→ 干净文本
+→ Chunk + Metadata
+→ Chunk Vector
+→ 向量记录
+→ 向量数据库及 ANN 索引
+```
 
 向量数据库不是 RAG 的必选组件：
 
@@ -128,18 +221,89 @@ Embedding 向量和 `chunk_id` 必须保持稳定映射。Retriever 返回向量
 
 ### 在线应用管线
 
-在线阶段从用户查询开始，以答案、引用或拒答结束。Top-k 只是 Retriever 的中间输出，不是完整在线阶段的最终输出。
+在线阶段从用户查询开始，以答案、引用或拒答结束。继续使用前面的售后政策知识库，观察一个问题在每一步变成什么形式。
 
-| 阶段 | 输入 | 主要处理 | 输出 |
-| --- | --- | --- | --- |
-| 查询处理 | 用户问题 | 清洗、改写、分解、过滤条件提取 | Retrieval Query |
-| Query Embedding | Retrieval Query | 使用查询编码器生成向量 | Query Vector |
-| 候选召回 | 查询表示和索引 | BM25、Dense 或 Hybrid Retrieval | Top-N Candidates |
-| 重排 | 查询和候选文本 | Cross-Encoder 或 LLM 精排 | Top-k Ranked Chunks |
-| 上下文组织 | 排序后的 Chunks | 截断、去重、压缩、排序、标注来源 | Packed Context |
-| Prompt 构造 | System、User、Context | 套用模板并明确回答约束 | Final Prompt |
-| 生成 | Final Prompt | LLM 解码、拒答或工具调用 | Answer |
-| 引用与后处理 | Answer 和 Metadata | 引用映射、格式化、安全检查 | Final Response |
+**第一步：接收并处理用户问题**
+
+```text
+用户问题：商品签收以后，多久可以申请无理由退款？
+```
+
+简单问题可以直接用于检索。复杂问题则可能先去除无意义字符、提取过滤条件，或者改写为更适合检索的表达：
+
+```text
+Retrieval Query：商品签收后无理由退款期限
+```
+
+**第二步：将查询编码成向量**
+
+查询也必须经过与文档兼容的 Embedding 模型：
+
+```text
+"商品签收后无理由退款期限"
+→ [0.018, -0.171, 0.087, 0.301, ...]
+```
+
+这个 `Query Vector` 与离线阶段保存的 `Chunk Vector` 位于同一个向量空间，因此可以计算内积或余弦相似度。
+
+**第三步：Retriever 召回候选 Chunk**
+
+向量索引搜索与 Query Vector 最相近的记录。例如先返回 Top-3：
+
+```text
+1. score=0.91  退款期限：签收后 7 天内……
+2. score=0.78  退款到账：审核通过后 3—5 个工作日……
+3. score=0.63  换货期限：签收后 15 天内……
+```
+
+这些是候选证据，不是最终答案。Retriever 的任务是尽量不要漏掉相关内容，因此候选集合中允许存在一些噪声。
+
+**第四步：Reranker 重新排序**
+
+Reranker 同时读取查询和候选文本，进行更精细的相关性判断。它可能保留前两条，并将真正回答“申请期限”的 Chunk 排在首位：
+
+```text
+Top-1：用户可在商品签收后 7 天内申请无理由退款。定制商品除外。
+Top-2：退款审核通过后，款项将在 3—5 个工作日内原路退回。
+```
+
+**第五步：组织上下文并构造 Prompt**
+
+系统根据 Token 预算对 Chunk 去重、截断、排序，并保留引用标识，最终形成 LLM 能读取的自然语言输入：
+
+```text
+系统要求：仅根据给定资料回答；资料不足时说明无法确定。
+
+参考资料：
+[售后政策，第 3 页]
+用户可在商品签收后 7 天内申请无理由退款。定制商品除外。
+
+用户问题：商品签收以后，多久可以申请无理由退款？
+```
+
+注意，LLM 接收的是原始 Chunk 文本，而不是 `[0.021, -0.184, ...]` 这样的检索向量。
+
+**第六步：生成并返回结果**
+
+```text
+用户可在商品签收后 7 天内申请无理由退款，但定制商品除外。
+来源：《售后政策》第 3 页。
+```
+
+因此在线数据的完整变化是：
+
+```text
+用户问题
+→ Retrieval Query
+→ Query Vector
+→ Retriever 候选 Chunks
+→ Reranker 排序后的 Chunks
+→ Packed Context
+→ Final Prompt
+→ 答案与引用
+```
+
+Top-k 只是 Retriever 或 Reranker 的中间输出，不是完整在线阶段的最终输出。
 
 这里需要区分三个容易混淆的对象：
 
