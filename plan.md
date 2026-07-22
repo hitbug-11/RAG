@@ -97,21 +97,23 @@ rag-copyright-lab/
 
 > 教学形式调整：快速检查后改用“精选文章/视频导读 → 用户自由总结 → Codex 纠错并整理笔记 → 最小实验验证”。不再用连续的细粒度问答推进；只在总结后使用少量综合问题确认理解。
 
-- [ ] 理解加载、解析、切分、Embedding、索引、检索、重排和生成；
-- [ ] 区分参数知识与外部知识；
-- [ ] 理解 Top-k、上下文预算和引用；
-- [ ] 标记每个环节可能保留或破坏水印的位置。
+- [x] 理解加载、解析、切分、Embedding、索引、检索、重排和生成；
+- [x] 区分参数知识与外部知识；
+- [x] 理解 Top-k、上下文预算和引用；
+- [x] 标记每个环节可能保留或破坏水印的位置。
 
-#### 1:00-2:00：LLM 与 RAG 协同
+完成依据：已学完三项精选资料，并通过反复检查数据流图，能够区分向量记录与 ANN 索引、Retrieval Query 与原始问题、Context Packing 与 Prompt Builder；相关稳定结论已写入 `notes/01-rag-data-flow.md`。
 
-- [ ] 理解 System、User 与 Retrieved Context 的角色；
-- [ ] 实验参数知识与检索知识冲突；
-- [ ] 理解 In-context Learning；
-- [ ] 比较精确字符串、语义信息和推理路径三类验证信号；
-- [ ] 理解显式 CoT、推理摘要和隐藏推理的区别；
-- [ ] 观察 Temperature、上下文顺序和拒答行为。
+#### 1:00-1:45：LLM 与 RAG 协同验证
 
-#### 2:00-4:00：手写 Vanilla RAG
+> 2026-07-22 动态调整：基础组件边界已经掌握，不再逐项问答。将原六个知识点合并为两个有输出的综合任务，通过小实验和自由总结验收。
+
+- [ ] 完成一个“参数知识与 Retrieved Context 冲突”最小实验，比较无上下文、正确上下文、错误上下文和冲突上下文，并观察 System 指令、上下文顺序、Temperature 与拒答行为；据此解释 In-context Learning。
+- [ ] 用一段结构化总结比较精确字符串、语义信息和推理路径三类验证信号，并说明显式 CoT、推理摘要和隐藏推理对黑盒验证的影响。
+
+#### 1:45-3:45：手写透明 Vanilla RAG
+
+本阶段只实现 Dense Retrieval，不加入 Reranker 或 LangChain，以便清楚观察每个中间对象；Reranker 留到第 2 天。
 
 - [ ] 文档切分；
 - [ ] 使用 Qwen3-Embedding 或 BGE-M3 编码；
@@ -135,20 +137,20 @@ rag-copyright-lab/
 }
 ```
 
-#### 4:00-5:00：基础对照实验
+#### 3:45-5:00：基础对照与故障归因实验
 
-- [ ] 无 RAG；
-- [ ] 正确检索上下文；
-- [ ] 错误上下文；
-- [ ] 相互冲突的上下文；
-- [ ] 查询改写前后。
+- [ ] 选择至少 5 个问题，分别运行无 RAG、正确上下文、错误上下文和冲突上下文，形成至少 20 条完整 Trace；
+- [ ] 对至少 2 个失败案例，沿 Trace 标出预期证据第一次消失或未被采用的位置；
+- [ ] 比较 Answer、Citation 与检索结果是否一致。
+
+Query Rewrite 前后对照移至第 3 天，与 Multi-query、Context Compression 和 Adaptive Routing 一起实验，避免在尚未建立基线时混入额外变量。
 
 ### 当日交付物
 
-- `vanilla_rag.py`
-- 至少 20 条测试样本；
-- `day1_baseline.csv`
-- 一张 RAG 水印传播链路图。
+- `src/rag/vanilla_rag.py`；
+- `data/eval/day1_questions.jsonl`：至少 5 个基础问题；
+- `results/day1_baseline.csv`：至少 20 条带完整 Trace 的条件运行记录；
+- RAG 水印传播链路图：已完成，见 `notes/01-rag-data-flow.md`。
 
 ### 验收标准
 
@@ -261,7 +263,7 @@ rag-copyright-lab/
 
 分析以下组件是否会成为天然去水印器：
 
-- [ ] Query Rewrite；
+- [ ] Query Rewrite，并比较改写前后的检索 Trace；
 - [ ] Multi-query；
 - [ ] HyDE；
 - [ ] Context Compression；
