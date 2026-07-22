@@ -1,0 +1,37 @@
+# Operating system and editors
+.DS_Store
+.idea/
+.vscode/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Environments and secrets
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+
+# Temporary files and caches
+tmp/
+cache/
+logs/
+
+# Models and large generated artifacts
+models/
+checkpoints/
+*.safetensors
+*.bin
+*.pt
+*.pth
+
+# Large local datasets; keep metadata and download scripts instead
+data/raw/
+data/processed/
