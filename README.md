@@ -32,8 +32,8 @@
 
 | 项目 | 状态 |
 |---|---|
-| 当前阶段 | 准备开始第 1 天 |
-| 当前任务 | 理解 RAG 数据流 |
+| 当前阶段 | 第 1 天进行中 |
+| 当前任务 | Day 1 精选资源导读与学习总结 |
 | 下一交付物 | Vanilla RAG、20 条测试样本、基础实验结果 |
 | 详细计划 | [plan.md](./plan.md) |
 | 研究主线 | RAG 知识库版权保护与所有权验证 |
@@ -45,7 +45,7 @@
 
 | 天数 | 主题 | 状态 | 主要产出 |
 |---|---|---|---|
-| Day 1 | RAG 与 LLM 的完整协同机制 | 未开始 | 透明 Vanilla RAG |
+| Day 1 | RAG 与 LLM 的完整协同机制 | 进行中 | 透明 Vanilla RAG |
 | Day 2 | 先进检索与水印检索几何 | 未开始 | BM25/Dense/Hybrid/Reranker 对比 |
 | Day 3 | LangChain、LangGraph 与先进 RAG | 未开始 | LangChain 与 Adaptive RAG |
 | Day 4 | 小规模复现 RAG© | 未开始 | RAG©-Lite 与统计验证 |
@@ -57,7 +57,7 @@
 
 ## 仓库结构
 
-笔记区已经建立；代码和实验目录将在首次使用时创建。
+当前仓库结构如下；代码和实验目录将在首次实际使用时创建。
 
 ```text
 RAG/
@@ -65,29 +65,16 @@ RAG/
 ├── AGENTS.md                 # 教学角色、工作约定和持续记忆
 ├── plan.md                   # 7 天详细学习计划
 ├── .obsidian/                # 可共享的 Vault 设置
-├── assets/                   # 笔记引用的小型图片和附件
 ├── notes/
 │   ├── 00-RAG知识地图.md      # Obsidian 主入口
-│   ├── daily/                # 每日学习笔记
+│   ├── 01-rag-data-flow.md   # RAG 数据流与 LLM 协同
+│   ├── assets/               # 笔记引用的小型图片和附件
 │   ├── concepts/             # 原子概念笔记
 │   ├── papers/               # 论文阅读笔记
 │   ├── experiments/          # 实验记录
 │   ├── research-ideas/       # 研究问题
-│   └── templates/            # Obsidian 模板
-├── configs/                  # 实验配置
-├── data/                     # 小型样本、评测数据和数据说明
-├── src/
-│   ├── ingestion/            # 加载、解析和切分
-│   ├── retrievers/           # BM25、Dense、Hybrid
-│   ├── rerankers/            # Reranker
-│   ├── rag/                  # Vanilla、LangChain、Adaptive RAG
-│   ├── watermark/            # RAG©、Canary 等方法
-│   ├── attacks/              # 授权环境内的安全实验
-│   └── evaluation/           # 检索、生成和版权指标
-├── experiments/              # 可复现实验入口
-├── results/                  # 小型结果、图表和摘要
-├── tests/                    # 自动化测试
-└── references/               # 论文索引和外部资料说明
+│   └── templates/            # Obsidian 知识章节与研究模板
+└── .gitignore                # 缓存、临时文件和大型产物规则
 ```
 
 ## Obsidian 使用
@@ -97,10 +84,10 @@ RAG/
 当前共享设置包括：
 
 - 新笔记默认放入 `notes/`；
-- 附件默认放入 `assets/`；
+- 附件默认放入 `notes/assets/`；
 - 使用标准 Markdown 链接；
 - 自动更新内部链接；
-- 每日笔记放入 `notes/daily/`；
+- 按学习阶段组织的知识章节直接放入 `notes/`，正文不记录进度轨迹；
 - 模板目录为 `notes/templates/`；
 - Git、缓存、模型和本地大型数据不进入 Obsidian 搜索。
 
@@ -151,6 +138,7 @@ RAG/
 
 ## 最近更新
 
+- 2026-07-22：整理仓库结构，将知识章节直接放入 `notes/`、附件迁入 `notes/assets/`，并清理 Daily Notes 配置与临时 PDF 产物；
 - 2026-07-22：建立 7 天学习计划；
 - 2026-07-22：明确 Codex 的教师、进度维护和仓库整理职责；
 - 2026-07-22：创建公开进度 README；
