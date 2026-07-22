@@ -1,13 +1,3 @@
----
-type: map-of-content
-status: active
-tags:
-  - rag
-  - knowledge-map
-  - copyright-protection
-updated: 2026-07-22
----
-
 # RAG 知识地图
 
 ## 1. 与已有知识的关系
