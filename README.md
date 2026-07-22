@@ -37,6 +37,7 @@
 | 下一交付物 | Vanilla RAG、20 条测试样本、基础实验结果 |
 | 详细计划 | [plan.md](./plan.md) |
 | 研究主线 | RAG 知识库版权保护与所有权验证 |
+| Obsidian | Vault 与知识地图已就绪 |
 
 最后更新：2026-07-22
 
@@ -54,18 +55,27 @@
 
 进度以 [plan.md](./plan.md) 中经过验证后勾选的任务为准。
 
-## 计划中的仓库结构
+## 仓库结构
 
-目录将在首次需要时创建，避免没有实际内容的空目录。
+笔记区已经建立；代码和实验目录将在首次使用时创建。
 
 ```text
 RAG/
 ├── README.md                 # 项目介绍、公开进度和使用说明
 ├── AGENTS.md                 # 教学角色、工作约定和持续记忆
 ├── plan.md                   # 7 天详细学习计划
+├── .obsidian/                # 可共享的 Vault 设置
+├── assets/                   # 笔记引用的小型图片和附件
+├── notes/
+│   ├── 00-RAG知识地图.md      # Obsidian 主入口
+│   ├── daily/                # 每日学习笔记
+│   ├── concepts/             # 原子概念笔记
+│   ├── papers/               # 论文阅读笔记
+│   ├── experiments/          # 实验记录
+│   ├── research-ideas/       # 研究问题
+│   └── templates/            # Obsidian 模板
 ├── configs/                  # 实验配置
 ├── data/                     # 小型样本、评测数据和数据说明
-├── notes/                    # 每日笔记和论文笔记
 ├── src/
 │   ├── ingestion/            # 加载、解析和切分
 │   ├── retrievers/           # BM25、Dense、Hybrid
@@ -79,6 +89,22 @@ RAG/
 ├── tests/                    # 自动化测试
 └── references/               # 论文索引和外部资料说明
 ```
+
+## Obsidian 使用
+
+在 Obsidian 中选择 **Open folder as vault**，打开本仓库根目录。主入口是 [RAG 知识地图](./notes/00-RAG知识地图.md)。
+
+当前共享设置包括：
+
+- 新笔记默认放入 `notes/`；
+- 附件默认放入 `assets/`；
+- 使用标准 Markdown 链接；
+- 自动更新内部链接；
+- 每日笔记放入 `notes/daily/`；
+- 模板目录为 `notes/templates/`；
+- Git、缓存、模型和本地大型数据不进入 Obsidian 搜索。
+
+个人窗口布局、主题、插件状态和 Graph 显示偏好不会提交到 Git。
 
 ## 重点研究问题
 
@@ -117,6 +143,7 @@ RAG/
 ## 仓库维护
 
 - [AGENTS.md](./AGENTS.md) 描述 Codex 在本仓库中的教师和维护者职责；
+- [RAG 知识地图](./notes/00-RAG知识地图.md) 是 Obsidian 学习入口；
 - 每完成一个经过验证的任务，同步更新 `plan.md`；
 - 每完成一个学习日或重要实验，同步更新本 README；
 - 大型数据、模型权重、缓存、临时文件和密钥不会提交到仓库；
@@ -126,6 +153,7 @@ RAG/
 
 - 2026-07-22：建立 7 天学习计划；
 - 2026-07-22：明确 Codex 的教师、进度维护和仓库整理职责；
-- 2026-07-22：创建公开进度 README。
-- 2026-07-22：初始化 Git `main` 分支并绑定远程仓库。
-- 2026-07-22：将初始学习计划与维护文档推送至 `origin/main`。
+- 2026-07-22：创建公开进度 README；
+- 2026-07-22：初始化 Git `main` 分支并绑定远程仓库；
+- 2026-07-22：将初始学习计划与维护文档推送至 `origin/main`；
+- 2026-07-22：建立 Obsidian Vault、知识地图、Day 1 笔记、论文笔记和模板体系。

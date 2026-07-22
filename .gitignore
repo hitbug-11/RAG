@@ -23,6 +23,13 @@ venv/
 tmp/
 cache/
 logs/
+.trash/
+
+# Obsidian: track only shared vault settings, ignore personal UI/plugin state
+.obsidian/*
+!.obsidian/app.json
+!.obsidian/daily-notes.json
+!.obsidian/templates.json
 
 # Models and large generated artifacts
 models/

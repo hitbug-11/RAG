@@ -1,0 +1,16 @@
+{
+  "alwaysUpdateLinks": true,
+  "newFileLocation": "folder",
+  "newFileFolderPath": "notes",
+  "attachmentFolderPath": "assets",
+  "useMarkdownLinks": true,
+  "userIgnoreFilters": [
+    ".git/",
+    "tmp/",
+    ".venv/",
+    "models/",
+    "checkpoints/",
+    "data/raw/",
+    "data/processed/"
+  ]
+}
