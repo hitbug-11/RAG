@@ -1,0 +1,9 @@
+index_family,configuration,approximation_parameter,training_seconds,build_seconds,index_size_mib,latency_ms_per_query,queries_per_second,recall_at_10_vs_flat,top1_agreement_vs_flat
+Flat,IndexFlatIP,none,0.0,0.018745,32.0,1.212284,824.889,1.0,1.0
+HNSW,"IndexHNSWFlat(M=16,efConstruction=100)",efSearch=8,0.0,1.10738,33.125,0.024921,40126.689,0.635,0.95
+HNSW,"IndexHNSWFlat(M=16,efConstruction=100)",efSearch=32,0.0,1.10738,33.125,0.045146,22150.116,0.71,0.95
+HNSW,"IndexHNSWFlat(M=16,efConstruction=100)",efSearch=128,0.0,1.10738,33.125,0.113296,8826.469,0.768333,1.0
+IVF,IndexIVFFlat(nlist=64),nprobe=1,0.285222,0.068885,32.313,0.03365,29717.771,0.723333,0.866667
+IVF,IndexIVFFlat(nlist=64),nprobe=4,0.285222,0.068885,32.313,0.107687,9286.145,0.976667,1.0
+IVF,IndexIVFFlat(nlist=64),nprobe=16,0.285222,0.068885,32.313,0.404417,2472.698,1.0,1.0
+IVF,IndexIVFFlat(nlist=64),nprobe=64,0.285222,0.068885,32.313,1.239573,806.729,1.0,1.0

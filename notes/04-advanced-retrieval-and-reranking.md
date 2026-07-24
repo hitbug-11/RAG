@@ -1,6 +1,6 @@
 # 先进检索与重排：从 BM25 到 Hybrid RAG
 
-本笔记围绕同一批 Chunk 和问题，逐步实现并比较 Sparse、Dense、Hybrid 与 Reranked Retrieval。当前已经建立透明 BM25、RRF Hybrid 和 Qwen3 Reranker 管线。首轮 20 对 Canary 实验因直接复制 Gold 事实，只能作为事实复制型正对照；本章同时记录这一设计缺陷及其纠正原则，避免把语义相关性误当成水印触发效果。
+本笔记围绕同一批 Chunk 和问题，逐步实现并比较 Sparse、Dense、Hybrid、Reranked Retrieval 与不同 FAISS 索引。当前已经建立透明 BM25、RRF Hybrid 和 Qwen3 Reranker 管线，完成水印实验设计纠错，并通过真实向量与压力集对照解释 Flat、HNSW、IVF 的准确率—延迟权衡。
 
 ## 知识点速查
 
@@ -8,6 +8,7 @@
 - [2. BM25 + Dense 的 RRF Hybrid 实验](#2-bm25--dense-的-rrf-hybrid-实验)
 - [3. Qwen3 Reranker 全量候选重排实验](#3-qwen3-reranker-全量候选重排实验)
 - [4. 事实复制型 Canary 正对照与设计纠错](#4-事实复制型-canary-正对照与设计纠错)
+- [5. FAISS Flat、HNSW、IVF 对照实验](#5-faiss-flathnswivf-对照实验)
 - [小结](#小结)
 - [参考资料](#参考资料)
 
@@ -1172,6 +1173,235 @@ Reranker Rank 1 是真正包含答案的 `qinglan-refund-v1#chunk-001`，其 Log
 - 当前只验证检索到正确 Canary，没有调用 Generator 输出核验口令，也没有计算最终所有权 Detector 的 FPR 和统计功效；
 - 需要在更低 Canary 占比、更大干净语料、查询改写和切分消融下重新测量。
 
+## 5. FAISS Flat、HNSW、IVF 对照实验
+
+### 5.1 知识定位：Embedding 模型与 ANN 索引不是同一组件
+
+Qwen3-Embedding 决定“文本如何变成向量”，FAISS 索引决定“如何在已有向量中寻找近邻”。替换 Flat、HNSW 或 IVF 不会重新理解文本，只会改变候选搜索方式：
+
+```text
+Query 文本
+→ Qwen3-Embedding
+→ 同一个 1024 维归一化向量
+→ Flat / HNSW / IVF
+→ 不同速度与近似误差的 Top-k
+```
+
+三种索引的核心差异如下：
+
+| 索引 | 搜索方式 | 是否需要训练 | 主要代价 | 是否精确 |
+|---|---|---|---|---|
+| Flat | 与全部 \(N\) 个向量计算内积 | 否 | 搜索量约 \(O(Nd)\) | 是 |
+| HNSW | 在多层近邻图上逐步导航 | 否 | 建图慢、额外保存图边 | 否 |
+| IVF | 先选择若干聚类桶，再扫描桶内向量 | 是，需要训练质心 | 训练与参数选择 | 否 |
+
+Flat 是本实验的 Gold 邻居来源。ANN 结果必须与 Flat 比较，不能用 HNSW 或 IVF 自己的结果评价自己。
+
+### 5.2 三种索引的数据流
+
+```mermaid
+flowchart TB
+    D["归一化 Document Embeddings"] --> FLAT["Flat<br/>保存全部向量"]
+    D --> HBUILD["HNSW 建图<br/>M / efConstruction"]
+    D --> TRAIN["IVF 训练质心<br/>nlist"]
+    TRAIN --> ASSIGN["向量分配到倒排桶"]
+
+    Q["归一化 Query Embedding"] --> FS["全量内积扫描"]
+    Q --> HS["图导航<br/>efSearch"]
+    Q --> IS["选择聚类桶<br/>nprobe"]
+
+    FLAT --> FS
+    HBUILD --> HS
+    ASSIGN --> IS
+
+    FS --> GOLD["精确 Top-k"]
+    HS --> ANN1["近似 Top-k"]
+    IS --> ANN2["近似 Top-k"]
+    GOLD --> EVAL["Recall@k / Top-1 Agreement"]
+    ANN1 --> EVAL
+    ANN2 --> EVAL
+```
+
+HNSW 的 `efSearch` 表示搜索时保留和探索的候选规模；值越大，通常召回越高、延迟越大。IVF 的 `nprobe` 表示查询多少个聚类桶；当 `nprobe=nlist` 时会探测所有桶，逐渐退化为接近全量扫描。
+
+### 5.3 为什么需要真实语料和压力集两层实验
+
+当前只有 32 个真实 Chunk。对如此小的索引：
+
+- Flat 已经非常便宜；
+- HNSW 很容易搜索完整；
+- IVF 没有足够训练样本学习可靠质心；
+- 微秒级延迟主要受计时噪声影响。
+
+因此实验分成两层：
+
+1. **真实 32 向量**：只验证 Top-10、Top-1 和 Verification Canary Rank 是否一致；
+2. **8,192 向量压力集**：在 32 个真实 Document Embedding 周围生成归一化高斯邻域，用于观察参数变化趋势。
+
+压力集生成公式为：
+
+\[
+\tilde d_{i,j}
+=
+\operatorname{normalize}
+\left(
+d_i+\epsilon_{i,j}
+\right),
+\qquad
+\epsilon_{i,j}\sim\mathcal N(0,0.02^2I)
+\]
+
+每个真实向量生成 256 个邻域向量，固定随机种子 `20260725`。这种构造保留了真实 Embedding 的局部方向，但人为形成了 32 个清晰簇，因此天然有利于 IVF；结果只能解释机制，不能宣称 IVF 普遍优于 HNSW。
+
+### 5.4 评价指标
+
+对每条查询，Flat 返回精确集合 \(G_q^k\)，ANN 返回集合 \(A_q^k\)。Recall@k 为：
+
+\[
+\operatorname{Recall@k}
+=
+\frac{1}{|Q|}
+\sum_{q\in Q}
+\frac{|G_q^k\cap A_q^k|}{k}
+\]
+
+Top-1 Agreement 只检查 ANN 第一名是否等于 Flat 第一名：
+
+\[
+\operatorname{Top1Agree}
+=
+\frac{1}{|Q|}
+\sum_{q\in Q}
+\mathbb 1[A_q^1=G_q^1]
+\]
+
+这两个指标不可互相替代。例如 HNSW 可能保持正确 Top-1，却遗漏不少第 2～10 名候选；这会影响 Reranker 的候选多样性和水印 Chunk 是否进入候选池。
+
+### 5.5 核心代码
+
+Flat 直接保存并扫描全部向量：
+
+```python
+flat = faiss.IndexFlatIP(dimension)
+flat.add(vectors)
+scores, exact_ids = flat.search(queries, top_k)
+```
+
+HNSW 不需要训练，但需要建图：
+
+```python
+hnsw = faiss.IndexHNSWFlat(
+    dimension,
+    16,
+    faiss.METRIC_INNER_PRODUCT,
+)
+hnsw.hnsw.efConstruction = 100
+hnsw.add(vectors)
+hnsw.hnsw.efSearch = 32
+scores, ids = hnsw.search(queries, top_k)
+```
+
+`M=16` 控制每个节点的图连接规模，`efConstruction=100` 控制建图时的搜索深度，`efSearch` 是在线搜索变量。
+
+IVF 必须先训练质心：
+
+```python
+quantizer = faiss.IndexFlatIP(dimension)
+ivf = faiss.IndexIVFFlat(
+    quantizer,
+    dimension,
+    64,
+    faiss.METRIC_INNER_PRODUCT,
+)
+ivf.train(vectors)
+ivf.add(vectors)
+ivf.nprobe = 4
+scores, ids = ivf.search(queries, top_k)
+```
+
+完整入口为 [`run_faiss_ann_comparison.py`](../scripts/run_faiss_ann_comparison.py)。实验固定 FAISS 单线程，并对 60 条查询重复搜索 30 次；延迟是每条 Query 的平均 CPU 搜索时间，不包含 Qwen Embedding 时间。
+
+### 5.6 真实 32 Chunk 结果
+
+在真实 32 个 Chunk 和 60 条三条件查询上：
+
+| 索引 | Top-10 Recall vs Flat | Top-1 Agreement | Verification Hit@1 |
+|---|---:|---:|---:|
+| Flat | 1.0 | 1.0 | 1.0 |
+| HNSW，充分搜索 | 1.0 | 1.0 | 1.0 |
+| IVF，探测全部桶 | 1.0 | 1.0 | 1.0 |
+
+所以在当前真实小语料上，替换索引不会改变 20 个 Verification Canary 的 Rank 1。
+
+IVF 在训练 4 个质心时发出警告：32 个训练向量少于推荐训练量。这个警告比表面上的 Recall=1.0 更重要：当 `nprobe` 覆盖全部桶时可以找回精确结果，但 32 个点不足以评价 IVF 聚类质量。当前生产基线继续使用 `IndexFlatIP` 更合理。
+
+### 5.7 8,192 向量压力集结果
+
+| 索引配置 | Recall@10 | Top-1 一致率 | 延迟 ms/Query | QPS |
+|---|---:|---:|---:|---:|
+| Flat | 1.0000 | 1.0000 | 1.2123 | 824.9 |
+| HNSW `efSearch=8` | 0.6350 | 0.9500 | 0.0249 | 40,126.7 |
+| HNSW `efSearch=32` | 0.7100 | 0.9500 | 0.0451 | 22,150.1 |
+| HNSW `efSearch=128` | 0.7683 | 1.0000 | 0.1133 | 8,826.5 |
+| IVF `nprobe=1` | 0.7233 | 0.8667 | 0.0337 | 29,717.8 |
+| IVF `nprobe=4` | 0.9767 | 1.0000 | 0.1077 | 9,286.1 |
+| IVF `nprobe=16` | 1.0000 | 1.0000 | 0.4044 | 2,472.7 |
+| IVF `nprobe=64` | 1.0000 | 1.0000 | 1.2396 | 806.7 |
+
+结果呈现了标准的 ANN 权衡：
+
+- HNSW 将 `efSearch` 从 8 增到 128，Recall@10 从 0.6350 升到 0.7683，同时延迟约增加 4.5 倍；
+- IVF 将 `nprobe` 从 1 增到 4，Recall@10 从 0.7233 升到 0.9767，Top-1 也恢复为 1.0；
+- `nprobe=16` 已在当前压力集达到精确 Top-10，但仍比 Flat 快约 3 倍；
+- `nprobe=64=nlist` 时遍历全部桶，延迟 `1.2396 ms`，已经与 Flat 的 `1.2123 ms` 接近。
+
+IVF 在这里明显优于 HNSW，不应外推为算法排名。压力集由 32 个高斯邻域组成，与 IVF 的聚类假设高度匹配；HNSW 还只测试了固定 `M=16` 和 `efConstruction=100`。真实语料的密度、维度分布、插入顺序和索引参数都会改变结果。
+
+### 5.8 建库成本与索引体积
+
+| 索引 | 训练时间 | 建库/添加时间 | 索引体积 |
+|---|---:|---:|---:|
+| Flat | 0 | 0.0187 秒 | 32.000 MiB |
+| HNSW | 0 | 1.1074 秒 | 33.125 MiB |
+| IVF | 0.2852 秒 | 0.0689 秒 | 32.313 MiB |
+
+Flat 几乎没有建库结构成本；HNSW 建图最慢，并增加图边存储；IVF 需要额外训练阶段，但添加向量比 HNSW 建图便宜。这里只使用 `IVFFlat`，桶内仍保存完整 Float32 向量；若使用 PQ 压缩，体积和精度还会发生另一层权衡。
+
+### 5.9 与知识库水印的关系
+
+ANN 近似误差位于 Dense Retriever 内部：
+
+```text
+水印 Query 与目标 Chunk 向量接近
+→ ANN 是否把目标找出来
+→ 是否进入 RRF / Reranker 候选
+→ 是否进入最终 Context
+```
+
+即使水印在 Flat 上 Rank 很高，也可能因 HNSW/IVF 的近似搜索而掉出候选。弱水印尤其依赖第 2～10 名候选，不能只报告 Top-1 Agreement。水印研究至少应固定并记录：
+
+- FAISS 索引类型和 Metric；
+- HNSW 的 `M`、`efConstruction`、`efSearch`；
+- IVF 的 `nlist`、训练样本和 `nprobe`；
+- 相对 Flat 的 Recall@k；
+- 水印目标在 ANN 前后的 Rank 与 Hit@k；
+- 候选深度和 Reranker 是否还有机会恢复目标。
+
+当前 20 个 Verification Canary 在真实 32 向量上信号很强，三种索引都保持 Rank 1；这不代表更隐蔽、更弱的水印也会稳定。
+
+### 5.10 易错点与实验边界
+
+- 不要把 Qwen Embedding 模型与 FAISS 索引混为一谈；
+- 使用 Inner Product 近似 Cosine 前必须归一化 Query 和 Document；
+- IVF 训练数据必须足够且与实际语料同分布；
+- 小语料上的微秒延迟和 Recall=1.0 不具有规模代表性；
+- ANN Recall 必须以同向量、同 Metric 的 Flat 结果为 Gold；
+- `nprobe=nlist` 失去 IVF 的主要加速意义；
+- 增大 `efSearch` 或 `nprobe` 通常提升召回，但不是免费的；
+- 本压力集是人为的 32 簇结构，参数结论不能直接移植到真实百万级知识库。
+
+实验明细见 [`day2_faiss_ann_comparison.csv`](../results/day2_faiss_ann_comparison.csv)，完整参数、数据哈希和真实语料验证见 [`day2_faiss_ann_summary.json`](../results/day2_faiss_ann_summary.json)。
+
 ## 小结
 
 本阶段先完成了一个不依赖外部检索库的透明 BM25，并在与 Dense 完全相同的 12 个 Chunk 和 5 个问题上完成对照。BM25 的 Gold Answer Chunk Recall@1 为 1.0，修复了 Dense 在 q01 上“主题正确但证据不完整”的排名错误；两种检索器的 Top-1 Chunk 一致率只有 0.4，证明它们使用的相关性信号确实不同。
@@ -1183,6 +1413,8 @@ Reranker Rank 1 是真正包含答案的 `qinglan-refund-v1#chunk-001`，其 Log
 目前已经建立四条可审计管线：Dense 通过连续语义空间排序，BM25 通过 TF、IDF 和长度归一化排序，RRF 通过来源名次与共识融合，Reranker 通过 Query–Chunk 联合交互进行精排。首轮事实复制正对照证明了相关副本容易获得高召回，却不能证明水印触发有效。
 
 纠正后的三条件实验给出了可归因结论：Normal Exact FTR@1 在四路均为 0；Trigger-only 在 BM25、Dense 和 RRF 中均达到 Hit@5=1.0，但经过 Reranker 后降为 0.95；Semantic verification 在四路中均达到 Hit@1=1.0。由此可以分别观察 Retriever 的触发敏感性、Reranker 的证据过滤，以及语义充分水印的端到端迁移。
+
+FAISS 对照进一步把 Dense 模型与索引搜索分开：真实 32 Chunk 上 Flat、充分搜索的 HNSW 和全桶 IVF 都保持 Verification Hit@1=1.0；8,192 向量压力集上，增大 `efSearch` 或 `nprobe` 会以更高延迟换取更高 Recall。IVF 在人为 32 簇数据上表现较好是实验构造造成的，不能直接外推到真实知识库。
 
 下一阶段可以在这一有效基线上继续水印位置、Chunk Size、Overlap 和 PCA/UMAP 消融。
 
@@ -1200,5 +1432,7 @@ Reranker Rank 1 是真正包含答案的 `qinglan-refund-v1#chunk-001`，其 Log
 - [水印检索统一实验入口](../scripts/run_watermark_retrieval_experiment.py)
 - [水印检索指标实现](../scripts/watermark_retrieval_metrics.py)
 - [水印检索实验汇总](../results/day2_watermark_retrieval_summary.json)
+- [FAISS ANN 对照实验入口](../scripts/run_faiss_ann_comparison.py)
+- [FAISS ANN 对照结果](../results/day2_faiss_ann_summary.json)
 - [Qwen3-Reranker-0.6B 模型卡](https://huggingface.co/Qwen/Qwen3-Reranker-0.6B)
 - Robertson, S. E. and Zaragoza, H. *The Probabilistic Relevance Framework: BM25 and Beyond*. 2009.

@@ -33,19 +33,19 @@
 | 项目 | 状态 |
 |---|---|
 | 当前阶段 | 第 2 个学习日：先进检索与水印检索几何 |
-| 当前任务 | 快速检查 FAISS Flat/HNSW/IVF，随后进行水印切分消融 |
-| 下一交付物 | 水印位置、Chunk Size、Overlap 与向量位移对照 |
+| 当前任务 | 水印位于句首、句中、句尾的检索消融 |
+| 下一交付物 | `retrieval_ablation.csv` 与 `embedding_visualization.png` |
 | 详细计划 | [plan.md](./plan.md) |
 | 研究主线 | RAG 知识库版权保护与所有权验证 |
 
-最后更新：2026-07-24
+最后更新：2026-07-25
 
 ## 7 天学习进度
 
 | 天数 | 主题 | 状态 | 主要产出 |
 |---|---|---|---|
 | Day 1 | RAG 与 LLM 的完整协同机制 | 已完成 | 透明 Vanilla RAG、30 条 Trace 与故障归因 |
-| Day 2 | 先进检索与水印检索几何 | 进行中 | BM25/Dense/Hybrid/Reranker 对比 |
+| Day 2 | 先进检索与水印检索几何 | 进行中 | 四路检索、水印迁移与 FAISS ANN 对比 |
 | Day 3 | LangChain、LangGraph 与先进 RAG | 未开始 | LangChain 与 Adaptive RAG |
 | Day 4 | 小规模复现 RAG© | 未开始 | RAG©-Lite 与统计验证 |
 | Day 5 | 知识库盗用与去水印攻击 | 未开始 | 攻击矩阵与鲁棒性结果 |
@@ -90,6 +90,7 @@ RAG/
 │   ├── run_context_packing.py # Top-1/Top-2 Prompt 对照实验
 │   ├── run_bm25_retrieval.py # BM25 评测与 Dense 对照
 │   ├── run_dense_retrieval.py # 5 问题 Top-k 检索评测
+│   ├── run_faiss_ann_comparison.py # Flat/HNSW/IVF 两层对照
 │   ├── run_qwen_generator_probe.py # q01 Top-1/Top-2 生成对照
 │   ├── run_qwen_reranker.py # 全量 Hybrid 候选重排实验
 │   ├── run_watermark_retrieval_experiment.py # 四管线水印迁移实验
@@ -97,7 +98,8 @@ RAG/
 │   ├── run_rrf_hybrid_retrieval.py # BM25 + Dense RRF 对照实验
 │   ├── run_server_python.sh # 约束服务器缓存和临时目录
 │   └── smoke_dense_retrieval.py # Qwen3 + FAISS 冒烟实验
-├── results/                 # 切分结果、验证摘要与实验结果
+├── results/                 # 切分、检索、水印与 FAISS 对照结果
+├── tests/                   # 检索组件与实验指标的自动化测试
 └── .gitignore                # 缓存、临时文件和大型产物规则
 ```
 
@@ -146,6 +148,7 @@ RAG/
 
 ## 最近更新
 
+- 2026-07-25：完成 FAISS Flat/HNSW/IVF 两层对照；真实 32 Chunk 上三种索引保持相同 Top-10 与 Verification Hit@1，8,192 向量压力集验证 `efSearch`/`nprobe` 的速度—召回权衡；当前小语料继续使用精确 `IndexFlatIP`；
 - 2026-07-24：完成纠正后的 20 组三条件水印检索实验；60 条查询形成 240 条四路 Trace，Normal Exact FTR@1 四路均为 0，Trigger-only Hit@5 经 Reranker 从 1.0 降至 0.95，Verification Hit@1 四路均为 1.0；
 - 2026-07-24：复核后确认首轮事实复制型 Canary 不能作为有效水印实验，将其降级为正对照；本地数据已纠正为 20 组三条件查询，Canary 不再复制业务答案，并显式记录 Clean Gold Chunk；
 - 2026-07-24：完成固定 revision 的 Qwen3-Reranker-0.6B 全量 Top-12 → Top-5 实验；q01 正确证据由 Rank 2 升至 Rank 1，Answer Recall@1 与 MRR 均达到 1.0；记录未校准概率饱和、Logit Margin、离线模型哈希与运行成本，教程新增第三章；

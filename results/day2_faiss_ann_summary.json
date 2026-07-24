@@ -1,0 +1,237 @@
+{
+  "experiment": "Day 2 FAISS Flat/HNSW/IVF comparison",
+  "model": {
+    "id": "Qwen/Qwen3-Embedding-0.6B",
+    "revision": "97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3",
+    "embedding_dimension": 1024,
+    "normalized": true,
+    "similarity": "inner product equals cosine similarity"
+  },
+  "data": {
+    "real_chunk_count": 32,
+    "query_count": 60,
+    "query_conditions": [
+      "normal",
+      "trigger_only",
+      "verification"
+    ],
+    "chunks_sha256": "8844f6b20f4adff6679eb9237721d79ab812eed29c7b0918170071b27f85a17f",
+    "triplets_sha256": "57dd33b015ae256474e394bd16f0cf410a3b07ef1fccfe31cf154dcd2b23ae90"
+  },
+  "real_corpus_validation": {
+    "corpus_size": 32,
+    "query_count": 60,
+    "top_k": 10,
+    "note": "Mechanism check only: 32 vectors are too few for meaningful latency or approximation conclusions",
+    "per_index": {
+      "flat": {
+        "top10_recall_vs_flat": 1.0,
+        "top1_agreement_vs_flat": 1.0,
+        "verification_target_hit_at_1": 1.0,
+        "verification_target_hit_at_5": 1.0,
+        "verification_target_ranks": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      "hnsw_full_search": {
+        "top10_recall_vs_flat": 1.0,
+        "top1_agreement_vs_flat": 1.0,
+        "verification_target_hit_at_1": 1.0,
+        "verification_target_hit_at_5": 1.0,
+        "verification_target_ranks": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      "ivf_full_probe": {
+        "top10_recall_vs_flat": 1.0,
+        "top1_agreement_vs_flat": 1.0,
+        "verification_target_hit_at_1": 1.0,
+        "verification_target_hit_at_5": 1.0,
+        "verification_target_ranks": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      }
+    }
+  },
+  "scaled_benchmark": {
+    "construction": "normalized Gaussian neighborhoods around the 32 real document embeddings",
+    "corpus_size": 8192,
+    "replicas_per_real_vector": 256,
+    "noise_std": 0.02,
+    "seed": 20260725,
+    "top_k": 10,
+    "repetitions": 30,
+    "faiss_threads": 1,
+    "rows": [
+      {
+        "index_family": "Flat",
+        "configuration": "IndexFlatIP",
+        "approximation_parameter": "none",
+        "training_seconds": 0.0,
+        "build_seconds": 0.018745,
+        "index_size_mib": 32.0,
+        "latency_ms_per_query": 1.212284,
+        "queries_per_second": 824.889,
+        "recall_at_10_vs_flat": 1.0,
+        "top1_agreement_vs_flat": 1.0
+      },
+      {
+        "index_family": "HNSW",
+        "configuration": "IndexHNSWFlat(M=16,efConstruction=100)",
+        "approximation_parameter": "efSearch=8",
+        "training_seconds": 0.0,
+        "build_seconds": 1.10738,
+        "index_size_mib": 33.125,
+        "latency_ms_per_query": 0.024921,
+        "queries_per_second": 40126.689,
+        "recall_at_10_vs_flat": 0.635,
+        "top1_agreement_vs_flat": 0.95
+      },
+      {
+        "index_family": "HNSW",
+        "configuration": "IndexHNSWFlat(M=16,efConstruction=100)",
+        "approximation_parameter": "efSearch=32",
+        "training_seconds": 0.0,
+        "build_seconds": 1.10738,
+        "index_size_mib": 33.125,
+        "latency_ms_per_query": 0.045146,
+        "queries_per_second": 22150.116,
+        "recall_at_10_vs_flat": 0.71,
+        "top1_agreement_vs_flat": 0.95
+      },
+      {
+        "index_family": "HNSW",
+        "configuration": "IndexHNSWFlat(M=16,efConstruction=100)",
+        "approximation_parameter": "efSearch=128",
+        "training_seconds": 0.0,
+        "build_seconds": 1.10738,
+        "index_size_mib": 33.125,
+        "latency_ms_per_query": 0.113296,
+        "queries_per_second": 8826.469,
+        "recall_at_10_vs_flat": 0.768333,
+        "top1_agreement_vs_flat": 1.0
+      },
+      {
+        "index_family": "IVF",
+        "configuration": "IndexIVFFlat(nlist=64)",
+        "approximation_parameter": "nprobe=1",
+        "training_seconds": 0.285222,
+        "build_seconds": 0.068885,
+        "index_size_mib": 32.313,
+        "latency_ms_per_query": 0.03365,
+        "queries_per_second": 29717.771,
+        "recall_at_10_vs_flat": 0.723333,
+        "top1_agreement_vs_flat": 0.866667
+      },
+      {
+        "index_family": "IVF",
+        "configuration": "IndexIVFFlat(nlist=64)",
+        "approximation_parameter": "nprobe=4",
+        "training_seconds": 0.285222,
+        "build_seconds": 0.068885,
+        "index_size_mib": 32.313,
+        "latency_ms_per_query": 0.107687,
+        "queries_per_second": 9286.145,
+        "recall_at_10_vs_flat": 0.976667,
+        "top1_agreement_vs_flat": 1.0
+      },
+      {
+        "index_family": "IVF",
+        "configuration": "IndexIVFFlat(nlist=64)",
+        "approximation_parameter": "nprobe=16",
+        "training_seconds": 0.285222,
+        "build_seconds": 0.068885,
+        "index_size_mib": 32.313,
+        "latency_ms_per_query": 0.404417,
+        "queries_per_second": 2472.698,
+        "recall_at_10_vs_flat": 1.0,
+        "top1_agreement_vs_flat": 1.0
+      },
+      {
+        "index_family": "IVF",
+        "configuration": "IndexIVFFlat(nlist=64)",
+        "approximation_parameter": "nprobe=64",
+        "training_seconds": 0.285222,
+        "build_seconds": 0.068885,
+        "index_size_mib": 32.313,
+        "latency_ms_per_query": 1.239573,
+        "queries_per_second": 806.729,
+        "recall_at_10_vs_flat": 1.0,
+        "top1_agreement_vs_flat": 1.0
+      }
+    ]
+  },
+  "timing": {
+    "model_load_seconds": 1.168
+  },
+  "environment": {
+    "python": "3.10.19",
+    "torch": "2.6.0+cu124",
+    "transformers": "4.57.6",
+    "sentence_transformers": "5.6.0",
+    "faiss": "1.14.3",
+    "gpu_for_embedding": "NVIDIA L20",
+    "ann_indexes": "CPU"
+  },
+  "artifacts": {
+    "comparison": "results/day2_faiss_ann_comparison.csv",
+    "summary": "results/day2_faiss_ann_summary.json"
+  }
+}

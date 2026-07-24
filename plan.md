@@ -193,9 +193,11 @@ Query Rewrite 前后对照移至第 3 天，与 Multi-query、Context Compressio
 - [x] BM25 与词项匹配；
 - [x] 双塔 Dense Retrieval；
 - [x] Cosine、Inner Product 与归一化；
-- [ ] ANN、FAISS Flat/HNSW/IVF 的基本差异；
+- [x] ANN、FAISS Flat/HNSW/IVF 的基本差异；
 - [x] Cross-Encoder/LLM Reranker；
 - [x] RRF 融合。
+
+> 2026-07-25：完成 FAISS Flat、HNSW 与 IVF 的两层对照。真实 32 Chunk 上，充分搜索的 HNSW 和全桶 IVF 相对 Flat 的 Top-10 Recall、Top-1 一致率及 Verification Hit@1 均为 1.0；8,192 向量压力集显示，增大 `efSearch` 或 `nprobe` 会以延迟换取 Recall。由于压力集由 32 个真实向量的高斯邻域构造，聚类结构天然有利于 IVF，不能据此给出普适算法排名。当前小语料继续使用精确 `IndexFlatIP`；完整结果见 `results/day2_faiss_ann_*`，教程见 `notes/04-advanced-retrieval-and-reranking.md` 第 5 章。
 
 #### 1:00-3:00：实现四条检索管线
 
