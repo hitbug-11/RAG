@@ -1,0 +1,19 @@
+{
+  "design": "paired normal/watermarked queries with one unique target Chunk",
+  "watermark_type": "canary-style retrieval watermark baseline",
+  "clean_chunk_count": 12,
+  "watermark_chunk_count": 20,
+  "combined_chunk_count": 32,
+  "query_pair_count": 20,
+  "query_count": 40,
+  "clean_chunks_sha256": "1ef6ba4567fb0869eda8318671602948a67e4c488c6cc1cace201ee11e3f0d89",
+  "chunks_output": "data/watermarked/day2_retrieval_chunks.jsonl",
+  "pairs_output": "data/eval/day2_watermark_query_pairs.jsonl",
+  "validation": {
+    "unique_triggers": true,
+    "triggers_absent_from_clean_corpus": true,
+    "one_target_chunk_per_trigger": true,
+    "normal_queries_exclude_trigger": true,
+    "watermarked_queries_include_trigger": true
+  }
+}

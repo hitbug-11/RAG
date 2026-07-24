@@ -210,12 +210,14 @@ Query Rewrite 前后对照移至第 3 天，与 Multi-query、Context Compressio
 
 准备至少 20 对正常/水印查询，测量：
 
-- [ ] 水印文档的 rank；
-- [ ] Top-1/5/10/20 命中率；
-- [ ] 水印文档与第 k+1 文档的分数间隔；
-- [ ] 正常查询误触发率；
-- [ ] 跨 Retriever Transfer Rate；
-- [ ] Reranker 前后的排名变化。
+- [x] 水印文档的 rank；
+- [x] Top-1/5/10/20 命中率；
+- [x] 水印文档与第 k+1 文档的分数间隔；
+- [x] 正常查询误触发率；
+- [x] 跨 Retriever Transfer Rate；
+- [x] Reranker 前后的排名变化。
+
+> 2026-07-24：构造 20 对语义相同、是否包含唯一触发短语的正常/水印查询，并在 12 个干净 Chunk + 20 个 Canary-style 水印 Chunk 上运行 BM25、Qwen3 Dense、RRF 与 Qwen3 Reranker 全库排名。BM25、Dense、RRF 的水印 Hit@1 均为 1.0；Reranker Hit@1 为 0.9、Hit@5 为 1.0，两个短 Canary 被证据更完整的原始物流 Chunk 降至 Rank 2。正常查询 Exact-target FTR@1 分别为 0.50、0.05、0.35、0.20，证明强触发与低误触发必须分开评估。完整 Rank、Margin、条件迁移率和前后变化见 `results/day2_watermark_retrieval_*`，教程见 `notes/04-advanced-retrieval-and-reranking.md` 第 4 章。
 
 #### 4:00-5:00：消融与可视化
 

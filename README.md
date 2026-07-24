@@ -33,8 +33,8 @@
 | 项目 | 状态 |
 |---|---|
 | 当前阶段 | 第 2 个学习日：先进检索与水印检索几何 |
-| 当前任务 | 快速检查 FAISS Flat/HNSW/IVF，随后构造正常/水印查询 |
-| 下一交付物 | 水印 Chunk Rank、Margin 与跨 Retriever 迁移率 |
+| 当前任务 | 快速检查 FAISS Flat/HNSW/IVF，随后进行水印切分消融 |
+| 下一交付物 | 水印位置、Chunk Size、Overlap 与向量位移对照 |
 | 详细计划 | [plan.md](./plan.md) |
 | 研究主线 | RAG 知识库版权保护与所有权验证 |
 
@@ -65,8 +65,10 @@ RAG/
 ├── plan.md                   # 7 天详细学习计划
 ├── requirements-server.txt  # 远程 GPU 环境的已验证依赖
 ├── data/
+│   ├── README.md             # 合成数据来源、许可与再生成说明
 │   ├── clean/               # 受控虚构知识库
-│   └── eval/                # 评测问题与期望答案
+│   ├── watermarked/         # 可追踪的水印检索实验语料
+│   └── eval/                # 基础问题与正常/水印查询对
 ├── notes/
 │   ├── 00-RAG知识地图.md      # 笔记导航入口
 │   ├── 01-rag-data-flow.md   # RAG 数据流与 LLM 协同
@@ -83,11 +85,14 @@ RAG/
 │   ├── qwen_generator.py    # 单卡 Qwen3 Generator 与输出解析
 │   ├── qwen_reranker.py     # Query–Chunk 联合打分的 Qwen3 Reranker
 │   ├── rrf_fusion.py        # 可解释 Reciprocal Rank Fusion
+│   ├── watermark_retrieval_metrics.py # Rank、Margin、误触发与迁移指标
+│   ├── build_watermark_retrieval_dataset.py # 20 对水印检索数据生成
 │   ├── run_context_packing.py # Top-1/Top-2 Prompt 对照实验
 │   ├── run_bm25_retrieval.py # BM25 评测与 Dense 对照
 │   ├── run_dense_retrieval.py # 5 问题 Top-k 检索评测
 │   ├── run_qwen_generator_probe.py # q01 Top-1/Top-2 生成对照
 │   ├── run_qwen_reranker.py # 全量 Hybrid 候选重排实验
+│   ├── run_watermark_retrieval_experiment.py # 四管线水印迁移实验
 │   ├── run_rag_condition_matrix.py # 5 问题的 30 条生成条件矩阵
 │   ├── run_rrf_hybrid_retrieval.py # BM25 + Dense RRF 对照实验
 │   ├── run_server_python.sh # 约束服务器缓存和临时目录
@@ -121,7 +126,7 @@ RAG/
 
 ## 复现说明
 
-当前已完成透明 Dense RAG 的切分、Embedding、FAISS、Context Packing、生成实验，以及同数据上的透明 BM25、RRF Hybrid 和 Qwen3 Reranker 对照。当前知识库的 12 个 Chunk 全部进入重排候选池，最终输出 Top-5。教程与复现命令见 [透明 Dense RAG：从文档切分到证据约束生成](./notes/03-transparent-dense-rag.md) 和 [先进检索与重排：从 BM25 到 Hybrid RAG](./notes/04-advanced-retrieval-and-reranking.md)。实验持续记录：
+当前已完成透明 Dense RAG 的切分、Embedding、FAISS、Context Packing、生成实验，以及透明 BM25、RRF Hybrid 和 Qwen3 Reranker 对照。进一步在 12 个干净 Chunk 与 20 个 Canary-style 水印 Chunk 上运行 20 对正常/水印查询：BM25、Dense、RRF 的水印 Hit@1 均为 1.0，Reranker Hit@1/5 为 0.9/1.0，同时发现事实复制型 Canary 的正常查询误触发偏高。教程与复现命令见 [透明 Dense RAG：从文档切分到证据约束生成](./notes/03-transparent-dense-rag.md) 和 [先进检索与重排：从 BM25 到 Hybrid RAG](./notes/04-advanced-retrieval-and-reranking.md)。实验持续记录：
 
 - Python 与依赖版本；
 - 数据来源和许可证；
@@ -141,6 +146,7 @@ RAG/
 
 ## 最近更新
 
+- 2026-07-24：完成 20 对正常/水印查询的四管线全库排名；BM25、Dense、RRF 水印 Hit@1 均为 1.0，Qwen3 Reranker Hit@1/5 为 0.9/1.0；保存 160 条完整 Trace、Rank、Margin、误触发率和条件迁移矩阵，教程新增第四章；
 - 2026-07-24：完成固定 revision 的 Qwen3-Reranker-0.6B 全量 Top-12 → Top-5 实验；q01 正确证据由 Rank 2 升至 Rank 1，Answer Recall@1 与 MRR 均达到 1.0；记录未校准概率饱和、Logit Margin、离线模型哈希与运行成本，教程新增第三章；
 - 2026-07-24：完成 BM25 + Dense 的透明 RRF Hybrid；Hybrid Gold Answer Chunk Recall@1 为 0.8，q01、q02、q05 出现对称 Rank 精确并列，确认融合不保证优于最佳单路；Day 2 教程新增 RRF 完整章节；
 - 2026-07-24：完成透明中文 BM25 与 Dense 同数据对照；5 个问题的 Gold Answer Chunk Recall@1 为 1.0，修复 Dense 的 q01 Rank-2 证据问题，两者 Top-1 Chunk 一致率为 0.4；新增 Day 2 教程首章；

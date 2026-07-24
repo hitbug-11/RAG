@@ -360,11 +360,11 @@ RAG/
 - 最后更新：2026-07-24
 - 当前计划：`plan.md`
 - 当前阶段：第 2 个学习日的先进检索与水印检索几何
-- 当前任务：完成 FAISS Flat/HNSW/IVF 的快速机制检查，随后构造至少 20 对正常/水印查询
-- 已完成任务：已完成透明 Dense、BM25、RRF Hybrid 与 Qwen3 Reranker；全量 12 Chunk 经 Qwen3-Reranker-0.6B 重排后输出 Top-5，q01 正确证据由 Rank 2 升至 Rank 1，Answer Recall@1/MRR 均为 1.0，13 个本地测试通过
-- 当前交付物：已创建四条可审计检索管线；保存全量 BM25/Dense/RRF 候选、60 个 Query–Chunk 重排得分、模型固定 revision 与权重哈希、四路指标对照；Day 2 教程已包含三个完整实验章节
-- 当前薄弱点：尚未完成 ANN 索引差异检查；当前只有 5 个措辞接近正文的问题；Reranker 概率未校准；尚未构造正常/水印查询并量化 Rank、分数间隔和跨 Retriever 迁移率
-- 下一步：先用当前 12 个向量做 Flat/HNSW/IVF 接口与近似行为快速检查，明确小数据上只能验证机制；随后开始 20 对正常/水印查询与目标 Chunk 的受控设计
+- 当前任务：快速检查 FAISS Flat/HNSW/IVF 的基本差异，随后进行水印位置、Chunk Size、Overlap 与向量位移消融
+- 已完成任务：已完成透明 Dense、BM25、RRF Hybrid、Qwen3 Reranker，以及 20 对正常/水印查询的四管线全库排名；已量化目标 Rank、Hit@1/5/10/20、Margin、正常查询误触发、跨检索器条件迁移率和 Reranker 前后变化
+- 当前交付物：四条透明检索管线、20 个可追踪 Canary-style 水印 Chunk、160 条完整检索 Trace、逐对照 CSV、指标汇总，以及包含四个可独立复现实验章节的 Day 2 教程
+- 当前薄弱点：尚未完成 Flat/HNSW/IVF 快速检查；当前 Canary 直接复制事实且占语料 62.5%，正常 Top-5 水印暴露过高；尚未测试水印位置、Chunk Size、Overlap 和向量空间位移
+- 下一步：先用同一组向量解释 Flat/HNSW/IVF 的速度—召回权衡，再固定触发词与事实，对句首/句中/句尾、256/512/1024 Chunk 和 0/64/128 Overlap 做消融
 - Git 状态：已初始化 `main` 分支并跟踪 `origin/main`；初始学习计划和维护文档已提交并推送
 
 ## 变更记录
@@ -393,3 +393,4 @@ RAG/
 - 2026-07-24：完成透明 BM25 与 Dense 同数据对照；BM25 的 Gold Answer Chunk Recall@1 为 1.0，Dense 为 0.8，两者 Top-1 Chunk 一致率为 0.4；新增 Day 2 教程笔记首章，下一实验进入 RRF Hybrid。
 - 2026-07-24：完成 BM25 + Dense 的透明 RRF Hybrid；Hybrid Answer Recall@1 为 0.8，q01、q02、q05 因 Rank 1/2 对称交换出现精确并列，证明融合并不保证优于最佳单路；教程新增 RRF 章节，下一实验进入 Qwen3 Reranker。
 - 2026-07-24：完成固定 revision 的 Qwen3-Reranker-0.6B 全量候选实验；当前 12 个 Chunk 全部进入候选池，输出 Top-5，q01 正确证据由 Rank 2 升至 Rank 1，Answer Recall@1/MRR 达到 1.0；13 个测试通过，教程新增 Reranker 第三章。
+- 2026-07-24：完成 20 对正常/水印查询的跨检索器迁移实验；BM25、Dense、RRF 水印 Hit@1 均为 1.0，Qwen3 Reranker Hit@1/5 为 0.9/1.0，并确认两个短 Canary 被证据更完整的原始 Chunk 降级；同时发现事实复制型 Canary 的正常 Top-5 暴露过高。

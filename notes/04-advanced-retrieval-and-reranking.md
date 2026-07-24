@@ -1,12 +1,13 @@
 # 先进检索与重排：从 BM25 到 Hybrid RAG
 
-本笔记围绕同一批 Chunk 和问题，逐步实现并比较 Sparse、Dense、Hybrid 与 Reranked Retrieval。每完成一个可复现实验，就增加一个教程章节；当前已经建立透明 BM25、RRF Hybrid 和 Qwen3 Reranker 管线，重点解释词项、向量语义、跨检索器共识与 Query–Chunk 联合打分如何共同影响最终候选。
+本笔记围绕同一批 Chunk 和问题，逐步实现并比较 Sparse、Dense、Hybrid 与 Reranked Retrieval。每完成一个可复现实验，就增加一个教程章节；当前已经建立透明 BM25、RRF Hybrid 和 Qwen3 Reranker 管线，并使用 20 对正常/水印查询测量触发信号在四条管线中的排名、误触发与迁移。
 
 ## 知识点速查
 
 - [1. 透明 BM25 与 Dense 对照实验](#1-透明-bm25-与-dense-对照实验)
 - [2. BM25 + Dense 的 RRF Hybrid 实验](#2-bm25--dense-的-rrf-hybrid-实验)
 - [3. Qwen3 Reranker 全量候选重排实验](#3-qwen3-reranker-全量候选重排实验)
+- [4. 正常/水印查询对的跨检索器迁移实验](#4-正常水印查询对的跨检索器迁移实验)
 - [小结](#小结)
 - [参考资料](#参考资料)
 
@@ -752,6 +753,276 @@ Reranker 是水印从“被召回”到“进入 Prompt”之间的第二道门�
 - q04、q05 的答案存在于两个 overlap Chunk，Top-1 改变没有影响答案 Recall；
 - 尚未加入正常/水印查询对，不能报告 Reranker 对水印的保留率和误触发率。
 
+## 4. 正常/水印查询对的跨检索器迁移实验
+
+### 4.1 实验定位：先测检索触发，不等同于完整 RAG©
+
+这一实验建立的是 Canary-style 检索水印基线，目标是回答：
+
+> 一个同时出现在 Query 和目标 Chunk 中的唯一触发短语，能否稳定穿过 BM25、Dense、RRF 和 Reranker？
+
+它不是完整的 RAG© 复现。RAG© 还涉及水印短语优化、目标推理行为和黑盒统计验证；这里先隔离 Retriever/Reranker，只研究目标 Chunk 的检索几何。
+
+在原有 12 个干净 Chunk 上追加 20 个水印 Chunk。每个水印 Chunk 包含：
+
+```text
+版本追踪标记：<唯一触发短语>。规则摘要：<一个真实政策事实>
+```
+
+每个目标 Chunk 配一对语义相同的查询：
+
+```text
+正常查询：青岚智能设备主体的有限保修期是多久？
+水印查询：橙枫轴距。青岚智能设备主体的有限保修期是多久？
+```
+
+触发词“橙枫轴距”只出现在该水印查询和其目标 Chunk 中。20 个触发词均不出现在原始干净语料，且互不重复。数据由 [`build_watermark_retrieval_dataset.py`](../scripts/build_watermark_retrieval_dataset.py) 生成并自动验证。
+
+这种成对设计保持问题语义不变，因此两次排名的差异主要来自触发短语；但水印 Chunk 同时复制了真实事实，所以正常查询也可能把它当作相关证据召回。这一点会直接表现为误触发，而不是被实验设计隐藏。
+
+### 4.2 完整数据流
+
+```mermaid
+flowchart LR
+    C["12 个干净 Chunk"] --> INDEX["追加 20 个<br/>水印目标 Chunk"]
+    W["20 对 Query"] --> NQ["Normal Query<br/>不含触发词"]
+    W --> TQ["Watermarked Query<br/>含唯一触发词"]
+    INDEX --> BM["BM25 全库排名"]
+    INDEX --> DE["Dense 全库排名"]
+    NQ --> BM
+    NQ --> DE
+    TQ --> BM
+    TQ --> DE
+    BM --> RRF["RRF 全库融合"]
+    DE --> RRF
+    RRF --> RR["Qwen3 Reranker<br/>全量 32 候选"]
+    BM --> METRIC["Target Rank / Hit@k<br/>Margin / False Trigger"]
+    DE --> METRIC
+    RRF --> METRIC
+    RR --> METRIC
+    METRIC --> TRANS["跨 Retriever<br/>条件迁移率"]
+```
+
+共运行 40 条查询。每条查询在四条管线中都保留 32 个 Chunk 的完整排名，Reranker 总计打分 \(40\times32=1280\) 个 Query–Chunk 对。
+
+### 4.3 指标：分别衡量触发能力和触发专属性
+
+设第 \(i\) 对查询的目标水印 Chunk 为 \(d_i^w\)，它在检索器 \(R\) 下的名次为 \(r_R(q,d_i^w)\)。
+
+目标命中率衡量水印查询能否召回指定 Chunk：
+
+\[
+\operatorname{Hit@k}
+=
+\frac{1}{N}
+\sum_{i=1}^{N}
+\mathbb{1}\left[
+r_R(q_i^w,d_i^w)\le k
+\right]
+\]
+
+触发带来的名次提升定义为：
+
+\[
+\Delta r_i
+=
+r_R(q_i^{normal},d_i^w)
+-
+r_R(q_i^w,d_i^w)
+\]
+
+\(\Delta r_i>0\) 表示加入触发词后目标 Chunk 上升。实验还记录目标与下一名的分数间隔：
+
+\[
+\operatorname{Margin}_{next}
+=
+s(q,d_{r})-s(q,d_{r+1})
+\]
+
+不同检索器的分数不在同一量纲，因此 Margin 只能在同一检索器内部解释，不能直接比较 BM25 的 `23.97` 和 Dense 的 `0.11`。
+
+正常查询误触发同时采用两种定义：
+
+- `Exact-target FTR@k`：正常查询是否召回与它配对的目标水印 Chunk；
+- `Any-watermark Exposure@k`：正常查询的 Top-k 中是否出现任意水印 Chunk。
+
+前者衡量触发专属性，后者衡量水印内容对正常候选集合的污染。跨检索器迁移率采用条件定义：
+
+\[
+\operatorname{Transfer}_{A\rightarrow B}@k
+=
+\frac{
+\left|H_A^k\cap H_B^k\right|
+}{
+\left|H_A^k\right|
+}
+\]
+
+其中 \(H_A^k\) 是在检索器 \(A\) 上成功进入 Top-k 的水印集合。
+
+### 4.4 核心实现
+
+数据构造时显式检查触发词唯一性：
+
+```python
+if any(trigger in clean_text for trigger in triggers):
+    raise AssertionError(
+        "A watermark trigger already occurs in the clean corpus"
+    )
+
+matching_chunks = [
+    chunk["chunk_id"]
+    for chunk in watermark_chunks
+    if trigger in chunk["text"]
+]
+if matching_chunks != [pair["target_chunk_id"]]:
+    raise AssertionError(
+        f"Trigger is not unique to its target: {trigger}"
+    )
+```
+
+四条管线使用同一批全量候选：
+
+```python
+bm25_trace = bm25.search(query, top_k=len(chunks))
+dense_trace = dense.search(query, top_k=len(chunks))
+
+hybrid_trace = reciprocal_rank_fusion(
+    {
+        "bm25": bm25_trace["results"],
+        "dense": dense_trace["results"],
+    },
+    rrf_k=60,
+    top_k=len(chunks),
+)
+
+reranker_trace = reranker.rerank(
+    query,
+    hybrid_trace["results"],
+)
+```
+
+目标 Rank、下一名 Margin 和水印暴露由统一函数计算：
+
+```python
+target_index = next(
+    (
+        index
+        for index, result in enumerate(results)
+        if result["chunk_id"] == target_chunk_id
+    ),
+    None,
+)
+rank = None if target_index is None else target_index + 1
+
+target_gap_to_next = (
+    results[target_index]["score"]
+    - results[target_index + 1]["score"]
+)
+```
+
+完整实验入口为 [`run_watermark_retrieval_experiment.py`](../scripts/run_watermark_retrieval_experiment.py)，模型无关指标位于 [`watermark_retrieval_metrics.py`](../scripts/watermark_retrieval_metrics.py)。
+
+### 4.5 运行设置与验证
+
+| 项目 | 设置 |
+|---|---|
+| 干净/水印 Chunk | 12 / 20 |
+| 查询对/查询总数 | 20 / 40 |
+| BM25 | \(k_1=1.5,b=0.75\) |
+| Dense | 固定 Revision 的 `Qwen3-Embedding-0.6B` |
+| Dense Index | 归一化向量 + `FAISS IndexFlatIP` |
+| RRF | \(k=60\)，两路均输入全量 Top-32 |
+| Reranker | 固定 Revision 的 `Qwen3-Reranker-0.6B` |
+| Reranker 候选 | 全量 32 |
+| GPU | 单张 NVIDIA L20 |
+
+本地 17 项测试全部通过；服务器新增数据与指标测试 4/4 通过。正式运行使用离线模型缓存，耗时如下：
+
+| 阶段 | 时间 |
+|---|---:|
+| Dense 模型加载 | 1.153 秒 |
+| 32 个 Chunk 编码与建库 | 0.343 秒 |
+| Reranker 模型加载 | 0.681 秒 |
+| 1,280 对 Reranker 打分 | 4.836 秒 |
+| 实验总耗时 | 8.446 秒 |
+
+### 4.6 运行结果
+
+水印查询和正常查询的核心结果如下：
+
+| 管线 | 水印 Hit@1 | 水印 Hit@5 | 正常 Exact FTR@1 | 正常 Exact FTR@5 | 平均 Rank Gain |
+|---|---:|---:|---:|---:|---:|
+| BM25 | 1.00 | 1.00 | 0.50 | 1.00 | 0.75 |
+| Dense | 1.00 | 1.00 | 0.05 | 0.85 | 2.55 |
+| RRF Hybrid | 1.00 | 1.00 | 0.35 | 1.00 | 1.25 |
+| Qwen3 Reranker | 0.90 | 1.00 | 0.20 | 0.95 | 1.10 |
+
+四条管线的水印查询 Hit@5 都为 1.0，说明该显式触发信号可以稳定进入较宽候选集。BM25、Dense 和 RRF 的 Hit@1 也都是 1.0；Reranker 的 Hit@1 降为 0.9，即 20 个目标中有 2 个被降到 Rank 2。
+
+Dense 的平均 Rank Gain 最大，为 `2.55`，并且正常查询 Exact FTR@1 只有 `0.05`。这意味着在当前数据上，唯一短语不仅能进入 Dense 语义表示，还比 BM25 更明显地区分“有触发”和“无触发”的成对查询。不过到 Top-5 时 Dense 的正常 Exact FTR 已升到 `0.85`，说明目标 Chunk 本身复制了正确事实，即使没有触发词也经常被召回。
+
+BM25 的水印目标相对下一名平均 Margin 为 `23.967676`，触发短语的罕见 unigram/bigram 带来很强的精确匹配贡献。但正常查询 Exact FTR@1 已达到 `0.50`，表明政策事实的字面重合本身就足以让一半水印副本排到第一。BM25 在这里“触发强”，却不等于“触发专一”。
+
+四条管线在 Top-5 的 `Any-watermark Exposure` 都为 1.0。原因不是所有触发词都会被正常查询猜中，而是水印 Chunk 占语料的 `20/32`，并复制了正常问题所需事实。这一结果说明：在评估误触发时，不能只看任意水印文档是否进入候选；还必须报告成对目标误触发，并在后续实验减少事实复制和水印占比。
+
+### 4.7 Reranker 为什么过滤了两个水印 Top-1
+
+`wm18` 查询为：
+
+```text
+岩鲸序列。青岚包裹多久没有新增物流轨迹会被标记为异常停滞？
+```
+
+Reranker 的前两名是：
+
+| Rank | Chunk | Logit Difference |
+|---:|---|---:|
+| 1 | 原始物流政策 `chunk-001` | 8.7500 |
+| 2 | `canary-wm18#chunk-000` | 8.3750 |
+
+`wm19` 也出现相同现象：
+
+| Rank | Chunk | Logit Difference |
+|---:|---|---:|
+| 1 | 原始物流政策 `chunk-001` | 7.8750 |
+| 2 | `canary-wm19#chunk-000` | 7.4375 |
+
+两个 Canary 都包含正确答案和唯一触发词，但原始政策 Chunk 同时包含停滞判定、计时起点、核查流程和补偿规则。Reranker 的 Instruction 要求寻找“包含充分回答证据的段落”，因此更完整的原始 Chunk 得分更高。
+
+这说明：
+
+```text
+唯一触发词
+→ BM25/Dense/RRF Rank 1
+→ Reranker 联合检查回答充分性
+→ 2 个短 Canary 被完整原文压到 Rank 2
+```
+
+Reranker 没有完全删除水印：两例仍在 Top-5。但它证明了纯词面或向量触发不能保证最终 Rank 1，水印 Chunk 还必须在语义上符合重排任务。
+
+### 4.8 跨检索器迁移与安全含义
+
+BM25、Dense 和 RRF 的水印 Hit@1 都是 20/20，因此从任一条管线迁移到另外两条的条件迁移率均为 1.0；迁移到 Reranker 的 Hit@1 为 0.9。Top-5 时四条管线间迁移率全部为 1.0。
+
+当前实验支持以下结论：
+
+1. 显式唯一短语可以同时利用 BM25 的罕见词项权重和 Dense 的向量表示，形成很强的跨检索器触发；
+2. RRF 会保留两个来源都支持的目标，但不会检查水印是否真的提供充分证据；
+3. Reranker 是第一道显式检查 Query–Chunk 回答关系的组件，会削弱“只靠触发短语取得 Rank 1”的水印；
+4. 高 Hit@k 不能单独证明水印设计良好；当前正常查询 FTR 很高，说明触发专属性和无害性不足；
+5. 后续水印设计应减少事实复制，控制水印文档占比，并把 Reranker 后的 Rank 与 Margin 纳入优化目标。
+
+### 4.9 实验边界
+
+- 语料仅有 32 个 Chunk，Top-20 很宽，Hit@20 没有足够区分度；
+- 水印 Chunk 占比高达 62.5%，会放大正常查询的水印暴露；
+- 每个 Canary 直接复制一个真实事实，因此正常查询召回它并不完全等价于面向最终 Detector 的假阳性；
+- 触发词均为显式罕见中文四字短语，尚未测试同义改写、字符扰动和隐蔽短语；
+- 当前只测检索到目标 Chunk，没有运行 Generator 或所有权 Detector；
+- Reranker 全量处理 32 个候选，尚未模拟真实系统中目标在候选截断前就丢失的情况；
+- Margin 只能在各检索器内部比较，不能跨 BM25、Dense、RRF 和 Reranker 直接比较绝对值。
+
 ## 小结
 
 本阶段先完成了一个不依赖外部检索库的透明 BM25，并在与 Dense 完全相同的 12 个 Chunk 和 5 个问题上完成对照。BM25 的 Gold Answer Chunk Recall@1 为 1.0，修复了 Dense 在 q01 上“主题正确但证据不完整”的排名错误；两种检索器的 Top-1 Chunk 一致率只有 0.4，证明它们使用的相关性信号确实不同。
@@ -760,7 +1031,9 @@ Reranker 是水印从“被召回”到“进入 Prompt”之间的第二道门�
 
 最后，Qwen3 Reranker 对全量 12 个 Hybrid 候选进行 Query–Chunk 联合打分，将 q01 正确证据从 Rank 2 提升到 Rank 1，使 Answer Recall@1 和 MRR 都恢复为 1.0。它还改变了 q04、q05 的 Top-1，但由于 overlap，两题的答案指标不变。高概率在同主题错误 Chunk 上同样饱和，说明 Reranker 应主要用于相对排序，而不能未经校准就充当证据充分性 Detector。
 
-目前已经建立四条可审计管线：Dense 通过连续语义空间排序，BM25 通过 TF、IDF 和长度归一化排序，RRF 通过来源名次与共识融合，Reranker 通过 Query–Chunk 联合交互进行精排。下一阶段需要构造正常/水印查询对，分别测量目标 Chunk 在四条管线中的 Rank、Top-k 命中率、Margin 和跨 Retriever Transfer Rate。
+目前已经建立四条可审计管线：Dense 通过连续语义空间排序，BM25 通过 TF、IDF 和长度归一化排序，RRF 通过来源名次与共识融合，Reranker 通过 Query–Chunk 联合交互进行精排。20 对正常/水印查询进一步证明，显式罕见短语在 BM25、Dense 和 RRF 上均可达到 1.0 的 Hit@1，但经过 Reranker 后有 2/20 个目标降到 Rank 2；四条管线的 Hit@5 均为 1.0。与此同时，正常查询在 Top-5 的水印暴露很高，说明强触发与低误触发是两个不同目标，不能只优化水印查询的召回率。
+
+下一阶段应消融水印位置、Chunk Size 与 Overlap，并用 PCA/UMAP 观察触发词造成的查询向量和目标 Chunk 位移。这将进一步区分“罕见词项带来的 BM25 提升”“向量空间中的真实迁移”和“Reranker 对证据充分性的过滤”。
 
 ## 参考资料
 
@@ -771,5 +1044,9 @@ Reranker 是水印从“被召回”到“进入 Prompt”之间的第二道门�
 - [RRF Hybrid 实验入口](../scripts/run_rrf_hybrid_retrieval.py)
 - [Qwen3 Reranker 实现](../scripts/qwen_reranker.py)
 - [Qwen3 Reranker 实验入口](../scripts/run_qwen_reranker.py)
+- [20 对水印检索数据生成器](../scripts/build_watermark_retrieval_dataset.py)
+- [水印检索统一实验入口](../scripts/run_watermark_retrieval_experiment.py)
+- [水印检索指标实现](../scripts/watermark_retrieval_metrics.py)
+- [水印检索实验汇总](../results/day2_watermark_retrieval_summary.json)
 - [Qwen3-Reranker-0.6B 模型卡](https://huggingface.co/Qwen/Qwen3-Reranker-0.6B)
 - Robertson, S. E. and Zaragoza, H. *The Probabilistic Relevance Framework: BM25 and Beyond*. 2009.
