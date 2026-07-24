@@ -195,13 +195,13 @@ Query Rewrite 前后对照移至第 3 天，与 Multi-query、Context Compressio
 - [ ] Cosine、Inner Product 与归一化；
 - [ ] ANN、FAISS Flat/HNSW/IVF 的基本差异；
 - [ ] Cross-Encoder/LLM Reranker；
-- [ ] RRF 融合。
+- [x] RRF 融合。
 
 #### 1:00-3:00：实现四条检索管线
 
 - [x] BM25；
 - [x] Qwen3/BGE Dense；
-- [ ] BM25 + Dense + RRF；
+- [x] BM25 + Dense + RRF；
 - [ ] Hybrid Top-30 + Qwen3 Reranker Top-5。
 
 #### 3:00-4:00：水印检索实验
