@@ -72,11 +72,11 @@ flowchart TB
 
 - [详细学习计划](../plan.md)
 - [RAG 数据流与 LLM 协同](./01-rag-data-flow.md)
+- [透明 Dense RAG：从文档切分到证据约束生成](./03-transparent-dense-rag.md)
 - [RAG© 论文笔记](./02-ragc-paper.md)
 
-## 5. 当前状态
+## 5. 建议阅读顺序
 
-- 当前阶段：Day 1 进行中；
-- 当前任务：完成 Day 1 精选资源导读并形成自由总结；
-- 已完成正式学习任务：无；
-- 下一步：根据资源导读总结，提炼 RAG 数据流、组件边界和水印传播机制。
+1. 先阅读 [RAG 数据流与 LLM 协同](./01-rag-data-flow.md)，建立组件边界和水印传播链的整体认识；
+2. 再阅读 [透明 Dense RAG](./03-transparent-dense-rag.md)，把数据流落实到可运行代码、指标和故障归因；
+3. 最后阅读 [RAG© 论文笔记](./02-ragc-paper.md)，将透明 RAG 的观测点映射到版权验证方法。

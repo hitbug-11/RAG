@@ -32,20 +32,20 @@
 
 | 项目 | 状态 |
 |---|---|
-| 当前阶段 | 第 1 个学习日结束；Day 1 模块仍在进行中 |
-| 当前任务 | 下次实现透明 Dense Vanilla RAG |
-| 下一交付物 | 透明 Vanilla RAG、20 条 Trace、基础实验结果 |
+| 当前阶段 | 第 2 个学习日：先进检索与水印检索几何 |
+| 当前任务 | 实现 BM25，并与 Dense Retrieval 对照 |
+| 下一交付物 | BM25/Dense/Hybrid/Reranker 检索对照 |
 | 详细计划 | [plan.md](./plan.md) |
 | 研究主线 | RAG 知识库版权保护与所有权验证 |
 
-最后更新：2026-07-23
+最后更新：2026-07-24
 
 ## 7 天学习进度
 
 | 天数 | 主题 | 状态 | 主要产出 |
 |---|---|---|---|
-| Day 1 | RAG 与 LLM 的完整协同机制 | 进行中 | 透明 Vanilla RAG |
-| Day 2 | 先进检索与水印检索几何 | 未开始 | BM25/Dense/Hybrid/Reranker 对比 |
+| Day 1 | RAG 与 LLM 的完整协同机制 | 已完成 | 透明 Vanilla RAG、30 条 Trace 与故障归因 |
+| Day 2 | 先进检索与水印检索几何 | 进行中 | BM25/Dense/Hybrid/Reranker 对比 |
 | Day 3 | LangChain、LangGraph 与先进 RAG | 未开始 | LangChain 与 Adaptive RAG |
 | Day 4 | 小规模复现 RAG© | 未开始 | RAG©-Lite 与统计验证 |
 | Day 5 | 知识库盗用与去水印攻击 | 未开始 | 攻击矩阵与鲁棒性结果 |
@@ -56,20 +56,36 @@
 
 ## 仓库结构
 
-当前仓库结构如下；代码和实验目录将在首次实际使用时创建。
+当前仓库结构如下：
 
 ```text
 RAG/
 ├── README.md                 # 项目介绍、公开进度和使用说明
 ├── AGENTS.md                 # 教学角色、工作约定和持续记忆
 ├── plan.md                   # 7 天详细学习计划
+├── requirements-server.txt  # 远程 GPU 环境的已验证依赖
+├── data/
+│   ├── clean/               # 受控虚构知识库
+│   └── eval/                # 评测问题与期望答案
 ├── notes/
 │   ├── 00-RAG知识地图.md      # 笔记导航入口
 │   ├── 01-rag-data-flow.md   # RAG 数据流与 LLM 协同
 │   ├── 02-ragc-paper.md      # RAG© 论文笔记
+│   ├── 03-transparent-dense-rag.md # 透明 Dense RAG 教程与实验结果
 │   └── assets/               # 笔记引用的小型图片和附件
-├── results/
-│   └── day1_context_conflict.md # 参数知识与检索上下文冲突实验
+├── scripts/
+│   ├── build_chunks.py      # 带字符位置和验证的透明切分器
+│   ├── context_pipeline.py  # Context Packing 与 Prompt Builder
+│   ├── dense_retriever.py   # Qwen3 + FAISS 可复用 Dense Retriever
+│   ├── download_server_models.py # 固定 revision 的服务器模型下载
+│   ├── qwen_generator.py    # 单卡 Qwen3 Generator 与输出解析
+│   ├── run_context_packing.py # Top-1/Top-2 Prompt 对照实验
+│   ├── run_dense_retrieval.py # 5 问题 Top-k 检索评测
+│   ├── run_qwen_generator_probe.py # q01 Top-1/Top-2 生成对照
+│   ├── run_rag_condition_matrix.py # 5 问题的 30 条生成条件矩阵
+│   ├── run_server_python.sh # 约束服务器缓存和临时目录
+│   └── smoke_dense_retrieval.py # Qwen3 + FAISS 冒烟实验
+├── results/                 # 切分结果、验证摘要与实验结果
 └── .gitignore                # 缓存、临时文件和大型产物规则
 ```
 
@@ -98,7 +114,7 @@ RAG/
 
 ## 复现说明
 
-当前仓库处于学习准备阶段。代码、依赖和运行命令将在 Day 1 开始实现后补充。所有实验将尽量记录：
+当前已完成透明 Dense RAG 的切分、Embedding、FAISS、Context Packing 和 q01 Top-1/Top-2 生成对照。教程与复现命令见 [透明 Dense RAG：从文档切分到证据约束生成](./notes/03-transparent-dense-rag.md)。实验持续记录：
 
 - Python 与依赖版本；
 - 数据来源和许可证；
@@ -118,6 +134,13 @@ RAG/
 
 ## 最近更新
 
+- 2026-07-24：完成 20 条基础上下文矩阵和 10 条附加诊断 Trace；No RAG 5/5 拒答、Gold 5/5 正确、Wrong 5/5 传播反事实，冲突证据仅 5/10 拒答，并发现内容相关的顺序效应；
+- 2026-07-24：完成 Retriever 排名、上游证据完整性和 Generator 冲突处理三类故障归因，Day 1 透明 Vanilla RAG 基线闭环；
+- 2026-07-24：整理两天实验代码与结果，新增透明 Dense RAG 教程，串联参数知识冲突、可追踪切分、Qwen3 + FAISS、证据级评测、Context Packing、Qwen3-8B 生成和 Trace 故障归因；
+- 2026-07-23：固定 Qwen3-Embedding 与 Qwen3-8B revision，将模型缓存迁入 `/data/haojiachen/rag/models` 并完成离线加载验证；`q01` Top-1 拒答、Top-2 正确回答和引用；
+- 2026-07-23：完成 Top-1/Top-2 Context Packing 与 Prompt Builder；确认 `q01` 证据在 Top-1 缺失、Top-2 进入 Prompt；
+- 2026-07-23：完成 12 个 Chunk 的 Qwen3 + FAISS 基线；Gold Document Recall@1 为 1.0，Gold Answer Chunk Recall@1 为 0.8，发现首个 Chunk-level 检索失败案例；
+- 2026-07-23：构造 5 份受控文档与 5 个问题，生成并验证 12 个可追踪 Chunk；Qwen3-Embedding + FAISS 服务器冒烟实验通过；
 - 2026-07-23：第 1 个学习日收尾；下一次先承接透明 Dense RAG、20 条 Trace 和故障归因，再进入先进检索；
 - 2026-07-22：完成 Gemini 参数知识与 Retrieved Context 冲突实验，记录 System 指令、上下文顺序和拒答行为；
 - 2026-07-22：完成 Day 1 RAG 数据流模块，后续集中进行知识冲突实验、透明 Dense RAG 和故障归因；

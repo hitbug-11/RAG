@@ -1,0 +1,79 @@
+{
+  "model": "Qwen/Qwen3-Embedding-0.6B",
+  "chunks_sha256": "1ef6ba4567fb0869eda8318671602948a67e4c488c6cc1cace201ee11e3f0d89",
+  "chunk_count": 12,
+  "embedding_dimension": 1024,
+  "document_vector_norm": {
+    "minimum": 1.0,
+    "maximum": 1.0
+  },
+  "index": {
+    "type": "IndexFlatIP",
+    "ntotal": 12,
+    "top_k": 5
+  },
+  "metrics": {
+    "question_count": 5,
+    "document_recall_at_1": 1.0,
+    "document_recall_at_3": 1.0,
+    "answer_recall_at_1": 0.8,
+    "answer_recall_at_3": 1.0,
+    "document_mrr": 1.0,
+    "answer_mrr": 0.9
+  },
+  "per_question": [
+    {
+      "question_id": "q01",
+      "gold_document_best_rank": 1,
+      "gold_answer_best_rank": 2,
+      "top1_chunk_id": "qinglan-refund-v1#chunk-000",
+      "top1_score": 0.772848
+    },
+    {
+      "question_id": "q02",
+      "gold_document_best_rank": 1,
+      "gold_answer_best_rank": 1,
+      "top1_chunk_id": "qinglan-invoice-v1#chunk-001",
+      "top1_score": 0.792988
+    },
+    {
+      "question_id": "q03",
+      "gold_document_best_rank": 1,
+      "gold_answer_best_rank": 1,
+      "top1_chunk_id": "qinglan-membership-v1#chunk-001",
+      "top1_score": 0.833556
+    },
+    {
+      "question_id": "q04",
+      "gold_document_best_rank": 1,
+      "gold_answer_best_rank": 1,
+      "top1_chunk_id": "qinglan-warranty-v1#chunk-000",
+      "top1_score": 0.866461
+    },
+    {
+      "question_id": "q05",
+      "gold_document_best_rank": 1,
+      "gold_answer_best_rank": 1,
+      "top1_chunk_id": "qinglan-logistics-v1#chunk-001",
+      "top1_score": 0.746665
+    }
+  ],
+  "timing": {
+    "model_load_seconds": 9.953,
+    "document_embedding_and_index_seconds": 0.319
+  },
+  "environment": {
+    "python": "3.10.19",
+    "torch": "2.6.0+cu124",
+    "transformers": "4.57.6",
+    "sentence_transformers": "5.6.0",
+    "faiss": "1.14.3",
+    "gpu": "NVIDIA L20"
+  },
+  "artifacts": {
+    "index": "results/day1_dense.faiss",
+    "embeddings": "results/day1_dense_embeddings.npy",
+    "manifest": "results/day1_dense_manifest.jsonl",
+    "traces": "results/day1_dense_retrieval.jsonl"
+  }
+}

@@ -23,6 +23,7 @@ venv/
 tmp/
 cache/
 logs/
+results/*.log
 .trash/
 
 # Models and large generated artifacts
@@ -32,6 +33,8 @@ checkpoints/
 *.bin
 *.pt
 *.pth
+*.faiss
+*.npy
 
 # Large local datasets; keep metadata and download scripts instead
 data/raw/

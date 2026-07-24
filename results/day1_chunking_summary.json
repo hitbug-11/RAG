@@ -1,0 +1,76 @@
+{
+  "input": "data/clean/day1_knowledge_base.jsonl",
+  "input_sha256": "dd00366c2c035d619437dddb53b2d8a39a1a39bd9e37533ae9f3abc0af954de2",
+  "output": "results/day1_chunks.jsonl",
+  "settings": {
+    "max_chars": 140,
+    "overlap_chars": 30,
+    "min_chars": 70,
+    "preferred_break_characters": [
+      "\n",
+      "。",
+      "！",
+      "；",
+      "？"
+    ]
+  },
+  "document_count": 5,
+  "chunk_count": 12,
+  "chunks_per_document": {
+    "qinglan-refund-v1": 3,
+    "qinglan-invoice-v1": 2,
+    "qinglan-membership-v1": 3,
+    "qinglan-warranty-v1": 2,
+    "qinglan-logistics-v1": 2
+  },
+  "chunk_lengths": {
+    "minimum": 65,
+    "maximum": 138,
+    "mean": 114.75
+  },
+  "validation": {
+    "chunk_ids_unique": true,
+    "offsets_reconstruct_source": true,
+    "all_non_whitespace_characters_covered": true,
+    "all_expected_answers_covered": true,
+    "answer_chunks": {
+      "q01": [
+        "qinglan-refund-v1#chunk-001"
+      ],
+      "q02": [
+        "qinglan-invoice-v1#chunk-000",
+        "qinglan-invoice-v1#chunk-001"
+      ],
+      "q03": [
+        "qinglan-membership-v1#chunk-001"
+      ],
+      "q04": [
+        "qinglan-warranty-v1#chunk-000",
+        "qinglan-warranty-v1#chunk-001"
+      ],
+      "q05": [
+        "qinglan-logistics-v1#chunk-000",
+        "qinglan-logistics-v1#chunk-001"
+      ]
+    },
+    "adjacent_overlap_characters": {
+      "qinglan-refund-v1": [
+        28,
+        30
+      ],
+      "qinglan-invoice-v1": [
+        30
+      ],
+      "qinglan-membership-v1": [
+        28,
+        30
+      ],
+      "qinglan-warranty-v1": [
+        30
+      ],
+      "qinglan-logistics-v1": [
+        30
+      ]
+    }
+  }
+}

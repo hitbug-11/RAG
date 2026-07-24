@@ -118,12 +118,22 @@ rag-copyright-lab/
 
 本阶段只实现 Dense Retrieval，不加入 Reranker 或 LangChain，以便清楚观察每个中间对象；Reranker 留到第 2 天。
 
-- [ ] 文档切分；
-- [ ] 使用 Qwen3-Embedding 或 BGE-M3 编码；
-- [ ] 使用 FAISS 检索；
-- [ ] 将 Top-k 文档组织为 Prompt；
-- [ ] 调用 LLM 生成答案和引用；
-- [ ] 保存所有中间结果。
+- [x] 文档切分；
+- [x] 使用 Qwen3-Embedding 或 BGE-M3 编码；
+- [x] 使用 FAISS 检索；
+- [x] 将 Top-k 文档组织为 Prompt；
+- [x] 调用 LLM 生成答案和引用；
+- [x] 保存所有中间结果。
+
+文档切分完成依据：已构造 5 份受控虚构政策文档和 5 个评测问题，使用 `scripts/build_chunks.py` 生成 12 个带稳定 ID、原文字符位置和 Metadata 的 Chunk；自动检查确认 ID 唯一、字符位置可还原原文、非空白字符无丢失，且 5 个期望答案均保留。结果见 `results/day1_chunks.jsonl` 与 `results/day1_chunking_summary.json`。
+
+Dense 编码与 FAISS 完成依据：在单张 NVIDIA L20 上使用 `Qwen/Qwen3-Embedding-0.6B` 将 12 个 Chunk 编码为归一化的 1024 维向量，并用 `IndexFlatIP` 对 5 个问题运行 Top-5；FAISS ID 与 Chunk Manifest 对齐检查通过。Gold Document Recall@1 为 1.0，Gold Answer Chunk Recall@1 为 0.8、Recall@3 为 1.0。逐查询结果见 `results/day1_dense_retrieval.jsonl`，汇总见 `results/day1_dense_retrieval_summary.json`。
+
+Context Packing 与 Prompt 完成依据：使用统一 Prompt 协议为 5 个问题分别生成 Top-1、Top-2 共 10 条记录；所选 Chunk ID 和正文均完整进入 Prompt，当前 1000 字符预算未丢弃 Chunk。证据覆盖率从 Top-1 的 0.8 提升到 Top-2 的 1.0；`q01` 的“9 个自然日”仅在 Top-2 Prompt 中出现。结果见 `results/day1_context_packing.jsonl` 与 `results/day1_context_packing_summary.json`。
+
+Generator 完成依据：在单张 NVIDIA L20 上使用固定 revision 的 `Qwen/Qwen3-8B`，通过 `enable_thinking=False`、显式贪心解码和 256 Token 上限运行 `q01` Top-1/Top-2。Top-1 无答案证据时模型返回“证据不足”且引用为空；Top-2 有证据时回答“9 个自然日”并引用 `qinglan-refund-v1#chunk-001`。两条输出均为合法 JSON，答案、拒答与引用检查通过。模型权重已迁入项目目录并通过离线加载验证，结果见 `results/project_cache_q01_generator_verify.jsonl` 与对应摘要。
+
+中间结果保存完成依据：30 条条件矩阵均保存 Query、证据角色与正文、Selected IDs、Packed Context、Prompt、模型侧 Rendered Chat Prompt、原始输出、解析结果、Citation、Token、耗时、显存和自动评测字段；完整性检查确认 30/30 条证据与 Prompt 对齐、JSON Schema 合法且 Citation ID 均属于 Selected IDs。结果见 `results/day1_condition_matrix.jsonl`。
 
 每次查询至少保存：
 
@@ -142,15 +152,18 @@ rag-copyright-lab/
 
 #### 3:45-5:00：基础对照与故障归因实验
 
-- [ ] 选择至少 5 个问题，分别运行无 RAG、正确上下文、错误上下文和冲突上下文，形成至少 20 条完整 Trace；
-- [ ] 对至少 2 个失败案例，沿 Trace 标出预期证据第一次消失或未被采用的位置；
-- [ ] 比较 Answer、Citation 与检索结果是否一致。
+- [x] 选择至少 5 个问题，分别运行无 RAG、正确上下文、错误上下文和冲突上下文，形成至少 20 条完整 Trace；
+- [x] 对至少 2 个失败案例，沿 Trace 标出预期证据第一次消失或未被采用的位置；
+- [x] 比较 Answer、Citation 与检索结果是否一致。
+
+完成依据：使用固定 revision 的 Qwen3-8B 在单张 L20 上运行 20 条基础矩阵，并增加 5 条反序冲突与 5 条真实 Retriever Top-1，共得到 30 条 Trace。No RAG 5/5 拒答，Gold Context 5/5 正确，Wrong Context 5/5 传播反事实，10 条冲突输入仅 5 条拒答；真实 Top-1 的端到端可回答率为 0.8，与 Answer Chunk Recall@1 一致。已分别将 q01 Top-1 定位为 Retriever Chunk 排名失败、反事实条件定位为上游证据完整性失败、q01/q03/q05 冲突条件定位为 Generator 冲突处理失败。结果见 `results/day1_baseline.csv`、`results/day1_condition_matrix_summary.json` 与 `notes/03-transparent-dense-rag.md`。
 
 Query Rewrite 前后对照移至第 3 天，与 Multi-query、Context Compression 和 Adaptive Routing 一起实验，避免在尚未建立基线时混入额外变量。
 
 ### 当日交付物
 
-- `src/rag/vanilla_rag.py`；
+- 透明 Vanilla RAG 模块：`scripts/dense_retriever.py`、`scripts/context_pipeline.py`、`scripts/qwen_generator.py`；
+- 条件实验入口：`scripts/run_rag_condition_matrix.py`；
 - `data/eval/day1_questions.jsonl`：至少 5 个基础问题；
 - `results/day1_baseline.csv`：至少 20 条带完整 Trace 的条件运行记录；
 - RAG 水印传播链路图：已完成，见 `notes/01-rag-data-flow.md`。
@@ -161,14 +174,11 @@ Query Rewrite 前后对照移至第 3 天，与 Multi-query、Context Compressio
 
 ### 第 1 个学习日收尾与承接
 
-> 2026-07-23：用户决定第 1 个学习日到此结束。已经完成 RAG 数据流、原始 RAG 模型理解、上下文组织边界和参数知识冲突实验；透明 Vanilla RAG、20 条基线 Trace 与故障归因尚未完成，因此本计划模块保持“进行中”，不提前标记完成。
+> 2026-07-23：用户决定第 1 个学习日到此结束。已经完成 RAG 数据流、原始 RAG 模型理解、上下文组织边界和参数知识冲突实验；透明 Vanilla RAG、20 条基线 Trace 与故障归因承接到第 2 个学习日。
 
-第 2 个学习日先承接以下任务，再进入“第 2 天：先进检索与水印检索几何”：
+> 2026-07-24：承接任务已经完成。透明 Dense Vanilla RAG 保存了全部关键中间对象；5 个问题的 20 条基础矩阵和 10 条诊断 Trace 已完成；Retriever、证据完整性和 Generator 冲突处理三类故障均已归因。由于用户要求服务器源码统一由本地 `scripts/` 同步，原计划的单文件 `src/rag/vanilla_rag.py` 调整为三个透明组件和一个实验入口，不降低验收标准。
 
-1. 手写透明 Dense Vanilla RAG，保存全部中间对象；
-2. 使用至少 5 个问题运行四种上下文条件，形成至少 20 条 Trace；
-3. 对至少 2 个失败案例完成 Retriever、Context Packing、Prompt 与 Generator 归因；
-4. 如有剩余时间，开始 BM25、Dense Retrieval、相似度与 ANN 原理。
+下一阶段进入“第 2 天：先进检索与水印检索几何”，从 BM25 与 Dense 的同数据对照开始。
 
 ## 5. 第 2 天：先进检索与水印检索几何
 

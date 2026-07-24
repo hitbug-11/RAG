@@ -1,0 +1,27 @@
+{
+  "project_root": "/data/haojiachen/rag",
+  "environment_paths": {
+    "HF_HOME": "/data/haojiachen/rag/models/huggingface",
+    "HF_HUB_CACHE": "/data/haojiachen/rag/models/huggingface/hub",
+    "HF_XET_CACHE": "/data/haojiachen/rag/models/huggingface/xet",
+    "TORCH_HOME": "/data/haojiachen/rag/models/torch",
+    "XDG_CACHE_HOME": "/data/haojiachen/rag/models/cache",
+    "TMPDIR": "/data/haojiachen/rag/tmp"
+  },
+  "downloads": [
+    {
+      "repo_id": "Qwen/Qwen3-Embedding-0.6B",
+      "revision": "97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3",
+      "snapshot_path": "/data/haojiachen/rag/models/huggingface/hub/models--Qwen--Qwen3-Embedding-0.6B/snapshots/97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3",
+      "file_count": 12,
+      "logical_size_bytes": 1207489041
+    },
+    {
+      "repo_id": "Qwen/Qwen3-8B",
+      "revision": "b968826d9c46dd6066d109eabc6255188de91218",
+      "snapshot_path": "/data/haojiachen/rag/models/huggingface/hub/models--Qwen--Qwen3-8B/snapshots/b968826d9c46dd6066d109eabc6255188de91218",
+      "file_count": 15,
+      "logical_size_bytes": 16397461266
+    }
+  ]
+}

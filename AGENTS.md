@@ -178,6 +178,25 @@ notes/
 - 修改代码后执行与风险相称的测试或最小实验；
 - 不将密钥、令牌、私有数据、大模型权重或大型原始数据提交到 Git。
 
+## 远程服务器文件规则
+
+- 远程服务器上由本项目产生或修改的所有文件必须位于 `/data/haojiachen/rag` 内；
+- 模型权重与 Hugging Face 缓存统一存放在 `/data/haojiachen/rag/models/huggingface`，不得写入用户主目录或其他服务器目录；
+- 运行时临时文件统一存放在 `/data/haojiachen/rag/tmp`；
+- 远程运行前必须设置：
+  - `HF_HOME=/data/haojiachen/rag/models/huggingface`
+  - `HF_HUB_CACHE=/data/haojiachen/rag/models/huggingface/hub`
+  - `HF_XET_CACHE=/data/haojiachen/rag/models/huggingface/xet`
+  - `HF_HUB_DISABLE_XET=1`
+  - `HF_HUB_DOWNLOAD_TIMEOUT=120`
+  - `TORCH_HOME=/data/haojiachen/rag/models/torch`
+  - `XDG_CACHE_HOME=/data/haojiachen/rag/models/cache`
+  - `TMPDIR=/data/haojiachen/rag/tmp`
+- 服务器代码必须先在本地仓库的 `scripts/` 中修改并验证，再使用 `scp` 同步到 `/data/haojiachen/rag/scripts`；不得直接在服务器上形成另一份源码；
+- 用户提供的 Conda 环境 `/data/anaconda3/envs/ibqw` 是本规则的明确例外，可以根据实验需要安装或更新 Python 依赖；代码、数据、结果、模型权重、缓存和临时文件仍必须位于 `/data/haojiachen/rag`；
+- 远程实验继续遵循单卡与实时日志约定：设置 `CUDA_VISIBLE_DEVICES=0`，使用 `PYTHONUNBUFFERED=1 python -u`；长任务使用 `nohup` 后台运行；
+- 删除服务器文件前必须先解析并核对精确目标，不得使用未解析变量、宽泛路径或可能影响其他项目的删除命令。
+
 ## 任务完成判定
 
 ### 单个任务完成
@@ -338,14 +357,14 @@ RAG/
 
 ## 当前学习状态
 
-- 最后更新：2026-07-23
+- 最后更新：2026-07-24
 - 当前计划：`plan.md`
-- 当前阶段：第 1 个学习日已结束；计划中的 Day 1 模块仍在进行中
-- 当前任务：下次学习先实现带完整 Trace 的透明 Dense Vanilla RAG
-- 已完成任务：已完成课前文章、三项精选资料、第 1 天 RAG 数据流模块和参数知识冲突 A—F 最小实验；能够区分向量记录与索引、Retrieval Query 与原始问题、Context Packing 与 Prompt Builder，并已完成水印传播链分析
-- 当前交付物：已创建学习计划、项目文档、RAG 知识地图、知识章节式 Day 1 笔记、RAG© 论文笔记与参数知识冲突实验报告
-- 当前薄弱点：尚未把概念落实为可运行的文档切分、Embedding、FAISS、Context Packing、Prompt 与 Trace 代码；尚未完成端到端故障归因
-- 下一步：第 2 个学习日从透明 Dense Vanilla RAG 开始，随后完成 20 条四条件 Trace 和至少 2 个失败案例归因；三类验证信号与 CoT 可见性移至 Day 4 Detector 阶段
+- 当前阶段：第 2 个学习日的先进检索与水印检索几何
+- 当前任务：实现 BM25，并在同一批 Chunk 和问题上与 Dense Retrieval 对照
+- 已完成任务：已完成 RAG 数据流、参数知识冲突、透明切分、Qwen3-Embedding + FAISS、Context Packing、Prompt Builder、Qwen3-8B 生成，以及 5 个问题的 20 条基础条件矩阵和 10 条诊断 Trace；已归因 Retriever 排名、上游证据完整性与 Generator 冲突处理三类故障
+- 当前交付物：已创建透明 Dense RAG 全部组件、30 条完整 Generator Trace、条件矩阵 CSV 与汇总、固定 revision 和离线缓存记录，以及结合关键代码、运行结果和故障归因的教程章节
+- 当前薄弱点：尚未实现 BM25、Hybrid/RRF 和 Reranker；尚未量化水印 Chunk 在不同检索器中的 Rank、分数间隔和迁移率
+- 下一步：在 12 个现有 Chunk 上实现透明 BM25，先验证词项匹配与分数，再与当前 Dense Top-5 逐问题比较
 - Git 状态：已初始化 `main` 分支并跟踪 `origin/main`；初始学习计划和维护文档已提交并推送
 
 ## 变更记录
@@ -362,3 +381,12 @@ RAG/
 - 2026-07-22：根据用户对数据流和组件边界的掌握情况，完成 Day 1 数据流模块；将 LLM 协同知识合并为综合实验，并把 Query Rewrite 对照移至 Day 3 编排阶段，Day 1 保持透明 Dense RAG 基线。
 - 2026-07-22：完成参数知识与 Retrieved Context 冲突的 A—F 最小实验；按用户决定跳过 Temperature 消融，并将实测结果、机制结论和局限保存到 `results/`。
 - 2026-07-23：第 1 个学习日收尾，未完成的 Vanilla RAG、20 条 Trace 与故障归因承接到第 2 个学习日；三类验证信号和 CoT 可见性移至 Day 4，与 Detector 实现一起学习。
+- 2026-07-23：开始第 2 个学习日；配置远程 L20 环境并通过 Qwen3-Embedding + FAISS 冒烟实验，随后建立 5 份虚构政策、5 个评测问题和 12 个带字符位置的 Chunk，完成文档切分自动验证。
+- 2026-07-23：完成 12 个 Chunk 的 Qwen3-Embedding 与 FAISS Top-5 基线；5 个问题的 Gold Document Recall@1 为 1.0，但 Gold Answer Chunk Recall@1 为 0.8，确认 `q01` 的正确证据位于 Rank 2。
+- 2026-07-23：完成透明 Context Packing 与 Prompt Builder；Top-1/Top-2 共生成 10 条 Prompt，确认 `q01` 的证据只在 Top-2 进入 Prompt，且当前 Context Budget 未造成额外丢失。
+- 2026-07-23：增加远程服务器文件约束；项目文件、模型缓存和临时文件必须分别位于 `/data/haojiachen/rag`、其 `models/huggingface` 与 `tmp` 子目录。
+- 2026-07-23：删除错误写入用户主目录的 Qwen3-Embedding-0.6B 与 Qwen3-8B 缓存，按固定 revision 重新下载到项目目录；两个模型均通过 `HF_HUB_OFFLINE=1` 离线加载验证。
+- 2026-07-23：明确 `/data/anaconda3/envs/ibqw` 可修改，是服务器项目目录约束的 Conda 环境例外；其他项目文件与缓存仍不得写到 `/data/haojiachen/rag` 之外。
+- 2026-07-24：将两天的参数知识冲突、透明切分、Dense Retrieval、Context Packing 和 Qwen3-8B 生成实验整理为独立教程章节 `notes/03-transparent-dense-rag.md`，并同步笔记导航与 README。
+- 2026-07-24：完成 5 问题的 20 条基础上下文矩阵，并追加反序冲突和真实 Dense Top-1 共 10 条诊断 Trace；No RAG、Gold 和 Wrong Context 行为均为 5/5 一致，冲突拒答率为 5/10，发现内容相关的证据顺序效应。
+- 2026-07-24：完成 Retriever Chunk 排名、上游证据完整性和 Generator 冲突处理三类故障归因；Day 1 透明 Vanilla RAG 基线闭环，进入 Day 2 的 BM25、Hybrid 与 Reranker 主线。

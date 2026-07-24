@@ -1,0 +1,5 @@
+{"question_id":"q01","query":"青岚商城普通商品签收后多久可以申请无理由退款？","expected_answer":"9 个自然日","answer_aliases":["9个自然日","9 天","9天"],"gold_document_id":"qinglan-refund-v1","category":"refund"}
+{"question_id":"q02","query":"订单完成后，电子发票的正常申请时限是多少？","expected_answer":"17 个自然日","answer_aliases":["17个自然日","17 天","17天"],"gold_document_id":"qinglan-invoice-v1","category":"invoice"}
+{"question_id":"q03","query":"普通会员需要累计多少成长值才能升级为金卡会员？","expected_answer":"1360 点成长值","answer_aliases":["1360点成长值","1360 点","1360点"],"gold_document_id":"qinglan-membership-v1","category":"membership"}
+{"question_id":"q04","query":"青岚智能设备主体的有限保修期是多久？","expected_answer":"22 个月","answer_aliases":["22个月"],"gold_document_id":"qinglan-warranty-v1","category":"warranty"}
+{"question_id":"q05","query":"运输中的包裹多久没有新增物流轨迹会被标记为异常停滞？","expected_answer":"连续 48 小时","answer_aliases":["连续48小时","48 小时","48小时"],"gold_document_id":"qinglan-logistics-v1","category":"logistics"}

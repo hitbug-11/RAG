@@ -1,0 +1,43 @@
+{
+  "status": "passed",
+  "model": "Qwen/Qwen3-Embedding-0.6B",
+  "revision": "97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3",
+  "query": "商品签收以后，多久可以申请无理由退款？",
+  "embedding_dimension": 1024,
+  "document_vector_norms": [
+    1.0,
+    1.0,
+    1.0
+  ],
+  "query_vector_norm": 1.0,
+  "index": "IndexFlatIP",
+  "ranking": [
+    {
+      "rank": 1,
+      "chunk_id": "after-sales#refund-01",
+      "score": 0.856713,
+      "text": "用户可在商品签收后 7 天内申请无理由退款，定制商品除外。"
+    },
+    {
+      "rank": 2,
+      "chunk_id": "invoice#deadline-01",
+      "score": 0.520989,
+      "text": "电子发票应在订单完成后的 30 天内申请。"
+    },
+    {
+      "rank": 3,
+      "chunk_id": "membership#upgrade-01",
+      "score": 0.189125,
+      "text": "会员累计获得 1000 成长值后可升级为金卡会员。"
+    }
+  ],
+  "environment": {
+    "python": "3.10.19",
+    "torch": "2.6.0+cu124",
+    "transformers": "4.57.6",
+    "sentence_transformers": "5.6.0",
+    "faiss": "1.14.3",
+    "gpu": "NVIDIA L20"
+  },
+  "model_load_seconds": 1.119
+}

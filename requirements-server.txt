@@ -1,0 +1,6 @@
+# Server environment: /data/anaconda3/envs/ibqw
+# Keep the existing CUDA-enabled PyTorch installation.
+transformers==4.57.6
+sentence-transformers==5.6.0
+faiss-cpu==1.14.3
+accelerate==1.14.0

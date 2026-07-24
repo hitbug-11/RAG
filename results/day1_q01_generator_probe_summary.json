@@ -1,0 +1,65 @@
+{
+  "model": "Qwen/Qwen3-8B",
+  "revision": "b968826d9c46dd6066d109eabc6255188de91218",
+  "model_load_seconds": 4.629,
+  "conditions": [
+    {
+      "condition": "top_1",
+      "evidence_present_in_prompt": false,
+      "raw_output": "{\"answer\": \"证据不足\", \"citations\": [], \"insufficient_evidence\": true}",
+      "parsed_output": {
+        "answer": "证据不足",
+        "citations": [],
+        "insufficient_evidence": true
+      },
+      "parse_error": null,
+      "evaluation": {
+        "answer_matches_expected": false,
+        "insufficient_evidence": true,
+        "citation_ids_valid": true,
+        "citation_supports_expected_answer": false,
+        "expected_behavior_met": true
+      },
+      "token_usage": {
+        "input_tokens": 242,
+        "output_tokens": 21
+      },
+      "generation_seconds": 1.105,
+      "peak_gpu_memory_gib": 15.324
+    },
+    {
+      "condition": "top_2",
+      "evidence_present_in_prompt": true,
+      "raw_output": "{\"answer\": \"普通商品自物流签收次日零时起计算，用户可在 9 个自然日内申请无理由退款。\", \"citations\": [\"qinglan-refund-v1#chunk-001\"], \"insufficient_evidence\": false}",
+      "parsed_output": {
+        "answer": "普通商品自物流签收次日零时起计算，用户可在 9 个自然日内申请无理由退款。",
+        "citations": [
+          "qinglan-refund-v1#chunk-001"
+        ],
+        "insufficient_evidence": false
+      },
+      "parse_error": null,
+      "evaluation": {
+        "answer_matches_expected": true,
+        "insufficient_evidence": false,
+        "citation_ids_valid": true,
+        "citation_supports_expected_answer": true,
+        "expected_behavior_met": true
+      },
+      "token_usage": {
+        "input_tokens": 360,
+        "output_tokens": 58
+      },
+      "generation_seconds": 1.566,
+      "peak_gpu_memory_gib": 15.352
+    }
+  ],
+  "environment": {
+    "python": "3.10.19",
+    "torch": "2.6.0+cu124",
+    "transformers": "4.57.6",
+    "accelerate": "1.14.0",
+    "gpu": "NVIDIA L20",
+    "visible_gpu_count": 1
+  }
+}

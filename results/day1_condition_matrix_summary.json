@@ -1,0 +1,219 @@
+{
+  "model": "Qwen/Qwen3-8B",
+  "revision": "b968826d9c46dd6066d109eabc6255188de91218",
+  "model_load_seconds": 4.375,
+  "record_count": 30,
+  "base_matrix_record_count": 20,
+  "diagnostic_record_count": 10,
+  "condition_order": [
+    "no_rag",
+    "gold_context",
+    "wrong_context",
+    "conflict_gold_first",
+    "conflict_wrong_first",
+    "retrieved_top1"
+  ],
+  "by_condition": {
+    "no_rag": {
+      "record_count": 5,
+      "schema_valid_rate": 1.0,
+      "gold_answer_rate": 0.0,
+      "counterfactual_answer_rate": 0.0,
+      "refusal_rate": 1.0,
+      "valid_citation_id_rate": 1.0,
+      "expected_behavior_rate": 1.0,
+      "mean_generation_seconds": 0.67,
+      "mean_input_tokens": 173.2,
+      "mean_output_tokens": 21.0
+    },
+    "gold_context": {
+      "record_count": 5,
+      "schema_valid_rate": 1.0,
+      "gold_answer_rate": 1.0,
+      "counterfactual_answer_rate": 0.0,
+      "refusal_rate": 0.0,
+      "valid_citation_id_rate": 1.0,
+      "expected_behavior_rate": 1.0,
+      "mean_generation_seconds": 1.385,
+      "mean_input_tokens": 291.8,
+      "mean_output_tokens": 51.4
+    },
+    "wrong_context": {
+      "record_count": 5,
+      "schema_valid_rate": 1.0,
+      "gold_answer_rate": 0.0,
+      "counterfactual_answer_rate": 1.0,
+      "refusal_rate": 0.0,
+      "valid_citation_id_rate": 1.0,
+      "expected_behavior_rate": 1.0,
+      "mean_generation_seconds": 1.525,
+      "mean_input_tokens": 298.0,
+      "mean_output_tokens": 56.8
+    },
+    "conflict_gold_first": {
+      "record_count": 5,
+      "schema_valid_rate": 1.0,
+      "gold_answer_rate": 0.4,
+      "counterfactual_answer_rate": 0.0,
+      "refusal_rate": 0.4,
+      "valid_citation_id_rate": 1.0,
+      "expected_behavior_rate": 0.4,
+      "mean_generation_seconds": 1.063,
+      "mean_input_tokens": 417.6,
+      "mean_output_tokens": 38.0
+    },
+    "conflict_wrong_first": {
+      "record_count": 5,
+      "schema_valid_rate": 1.0,
+      "gold_answer_rate": 0.2,
+      "counterfactual_answer_rate": 0.2,
+      "refusal_rate": 0.6,
+      "valid_citation_id_rate": 1.0,
+      "expected_behavior_rate": 0.6,
+      "mean_generation_seconds": 0.901,
+      "mean_input_tokens": 417.6,
+      "mean_output_tokens": 31.8
+    },
+    "retrieved_top1": {
+      "record_count": 5,
+      "schema_valid_rate": 1.0,
+      "gold_answer_rate": 0.8,
+      "counterfactual_answer_rate": 0.0,
+      "refusal_rate": 0.2,
+      "valid_citation_id_rate": 1.0,
+      "expected_behavior_rate": 1.0,
+      "mean_generation_seconds": 1.121,
+      "mean_input_tokens": 286.0,
+      "mean_output_tokens": 41.2
+    }
+  },
+  "base_20_matrix_expected_behavior_rate": 0.85,
+  "conflict_order_analysis": [
+    {
+      "question_id": "q01",
+      "gold_first_raw_output": "{\"answer\": \"普通商品自物流签收次日零时起计算，用户可在 9 个自然日内申请无理由退款。\", \"citations\": [\"qinglan-refund-v1#chunk-001\"], \"insufficient_evidence\": false}",
+      "wrong_first_raw_output": "{\"answer\": \"14 个自然日\", \"citations\": [\"qinglan-refund-v1#chunk-001#counterfactual-q01\"], \"insufficient_evidence\": false}",
+      "same_parsed_output": false,
+      "both_refused_as_required": false
+    },
+    {
+      "question_id": "q02",
+      "gold_first_raw_output": "{\"answer\": \"证据不足\", \"citations\": [], \"insufficient_evidence\": true}",
+      "wrong_first_raw_output": "{\"answer\": \"证据不足\", \"citations\": [], \"insufficient_evidence\": true}",
+      "same_parsed_output": true,
+      "both_refused_as_required": true
+    },
+    {
+      "question_id": "q03",
+      "gold_first_raw_output": "{\"answer\": \"1360\", \"citations\": [\"qinglan-membership-v1#chunk-001\"], \"insufficient_evidence\": false}",
+      "wrong_first_raw_output": "{\"answer\": \"普通会员需要累计 1360 点成长值才能升级为金卡会员\", \"citations\": [\"qinglan-membership-v1#chunk-001\"], \"insufficient_evidence\": false}",
+      "same_parsed_output": false,
+      "both_refused_as_required": false
+    },
+    {
+      "question_id": "q04",
+      "gold_first_raw_output": "{\"answer\": \"证据不足\", \"citations\": [], \"insufficient_evidence\": true}",
+      "wrong_first_raw_output": "{\"answer\": \"证据不足\", \"citations\": [], \"insufficient_evidence\": true}",
+      "same_parsed_output": true,
+      "both_refused_as_required": true
+    },
+    {
+      "question_id": "q05",
+      "gold_first_raw_output": "{\"answer\": \"运输中的包裹在连续 48 小时没有新增物流轨迹时会被标记为异常停滞。\", \"citations\": [\"qinglan-logistics-v1#chunk-000\"], \"insufficient_evidence\": false}",
+      "wrong_first_raw_output": "{\"answer\": \"证据不足\", \"citations\": [], \"insufficient_evidence\": true}",
+      "same_parsed_output": false,
+      "both_refused_as_required": false
+    }
+  ],
+  "unexpected_behavior_count": 5,
+  "unexpected_behaviors": [
+    {
+      "question_id": "q01",
+      "condition": "conflict_gold_first",
+      "expected_mode": "refuse_conflict",
+      "raw_output": "{\"answer\": \"普通商品自物流签收次日零时起计算，用户可在 9 个自然日内申请无理由退款。\", \"citations\": [\"qinglan-refund-v1#chunk-001\"], \"insufficient_evidence\": false}",
+      "evaluation": {
+        "schema_valid": true,
+        "answer_matches_gold": true,
+        "answer_matches_counterfactual": false,
+        "insufficient_evidence": false,
+        "citation_ids_valid": true,
+        "citations_support_gold": true,
+        "citations_support_counterfactual": false,
+        "expected_behavior_met": false
+      }
+    },
+    {
+      "question_id": "q01",
+      "condition": "conflict_wrong_first",
+      "expected_mode": "refuse_conflict",
+      "raw_output": "{\"answer\": \"14 个自然日\", \"citations\": [\"qinglan-refund-v1#chunk-001#counterfactual-q01\"], \"insufficient_evidence\": false}",
+      "evaluation": {
+        "schema_valid": true,
+        "answer_matches_gold": false,
+        "answer_matches_counterfactual": true,
+        "insufficient_evidence": false,
+        "citation_ids_valid": true,
+        "citations_support_gold": false,
+        "citations_support_counterfactual": true,
+        "expected_behavior_met": false
+      }
+    },
+    {
+      "question_id": "q03",
+      "condition": "conflict_gold_first",
+      "expected_mode": "refuse_conflict",
+      "raw_output": "{\"answer\": \"1360\", \"citations\": [\"qinglan-membership-v1#chunk-001\"], \"insufficient_evidence\": false}",
+      "evaluation": {
+        "schema_valid": true,
+        "answer_matches_gold": false,
+        "answer_matches_counterfactual": false,
+        "insufficient_evidence": false,
+        "citation_ids_valid": true,
+        "citations_support_gold": true,
+        "citations_support_counterfactual": false,
+        "expected_behavior_met": false
+      }
+    },
+    {
+      "question_id": "q03",
+      "condition": "conflict_wrong_first",
+      "expected_mode": "refuse_conflict",
+      "raw_output": "{\"answer\": \"普通会员需要累计 1360 点成长值才能升级为金卡会员\", \"citations\": [\"qinglan-membership-v1#chunk-001\"], \"insufficient_evidence\": false}",
+      "evaluation": {
+        "schema_valid": true,
+        "answer_matches_gold": true,
+        "answer_matches_counterfactual": false,
+        "insufficient_evidence": false,
+        "citation_ids_valid": true,
+        "citations_support_gold": true,
+        "citations_support_counterfactual": false,
+        "expected_behavior_met": false
+      }
+    },
+    {
+      "question_id": "q05",
+      "condition": "conflict_gold_first",
+      "expected_mode": "refuse_conflict",
+      "raw_output": "{\"answer\": \"运输中的包裹在连续 48 小时没有新增物流轨迹时会被标记为异常停滞。\", \"citations\": [\"qinglan-logistics-v1#chunk-000\"], \"insufficient_evidence\": false}",
+      "evaluation": {
+        "schema_valid": true,
+        "answer_matches_gold": true,
+        "answer_matches_counterfactual": false,
+        "insufficient_evidence": false,
+        "citation_ids_valid": true,
+        "citations_support_gold": true,
+        "citations_support_counterfactual": false,
+        "expected_behavior_met": false
+      }
+    }
+  ],
+  "environment": {
+    "python": "3.10.19",
+    "torch": "2.6.0+cu124",
+    "transformers": "4.57.6",
+    "accelerate": "1.14.0",
+    "gpu": "NVIDIA L20",
+    "visible_gpu_count": 1
+  }
+}
