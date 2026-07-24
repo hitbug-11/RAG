@@ -8,6 +8,7 @@
 - [RAG 数据流与 LLM 协同](./01-rag-data-flow.md)
 - [RAG© 论文笔记](./02-ragc-paper.md)
 - [透明 Dense RAG：从文档切分到证据约束生成](./03-transparent-dense-rag.md)
+- [先进检索与重排：从 BM25 到 Hybrid RAG](./04-advanced-retrieval-and-reranking.md)
 
 ## 目录约定
 

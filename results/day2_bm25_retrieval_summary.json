@@ -1,0 +1,106 @@
+{
+  "retriever": "BM25",
+  "tokenizer": "NFKC lowercase; Chinese character unigrams+bigrams; alphanumeric spans",
+  "parameters": {
+    "k1": 1.5,
+    "b": 0.75
+  },
+  "chunks_sha256": "1ef6ba4567fb0869eda8318671602948a67e4c488c6cc1cace201ee11e3f0d89",
+  "chunk_count": 12,
+  "average_document_length": 182.583,
+  "vocabulary_size": 976,
+  "top_k": 5,
+  "metrics": {
+    "question_count": 5,
+    "document_recall_at_1": 1.0,
+    "document_recall_at_3": 1.0,
+    "answer_recall_at_1": 1.0,
+    "answer_recall_at_3": 1.0,
+    "document_mrr": 1.0,
+    "answer_mrr": 1.0,
+    "top1_chunk_agreement_with_dense": 0.4
+  },
+  "per_question": [
+    {
+      "question_id": "q01",
+      "gold_document_best_rank": 1,
+      "gold_answer_best_rank": 1,
+      "top1_chunk_id": "qinglan-refund-v1#chunk-001",
+      "top1_score": 35.066793,
+      "top1_strongest_terms": [
+        "无",
+        "无理",
+        "理由",
+        "由退",
+        "品"
+      ]
+    },
+    {
+      "question_id": "q02",
+      "gold_document_best_rank": 1,
+      "gold_answer_best_rank": 1,
+      "top1_chunk_id": "qinglan-invoice-v1#chunk-000",
+      "top1_score": 41.847307,
+      "top1_strongest_terms": [
+        "子",
+        "电子",
+        "发票",
+        "票",
+        "子发"
+      ]
+    },
+    {
+      "question_id": "q03",
+      "gold_document_best_rank": 1,
+      "gold_answer_best_rank": 1,
+      "top1_chunk_id": "qinglan-membership-v1#chunk-001",
+      "top1_score": 47.057431,
+      "top1_strongest_terms": [
+        "会员",
+        "员",
+        "值",
+        "成长",
+        "长"
+      ]
+    },
+    {
+      "question_id": "q04",
+      "gold_document_best_rank": 1,
+      "gold_answer_best_rank": 1,
+      "top1_chunk_id": "qinglan-warranty-v1#chunk-000",
+      "top1_score": 47.143824,
+      "top1_strongest_terms": [
+        "保",
+        "保修",
+        "岚智",
+        "智",
+        "智能"
+      ]
+    },
+    {
+      "question_id": "q05",
+      "gold_document_best_rank": 1,
+      "gold_answer_best_rank": 1,
+      "top1_chunk_id": "qinglan-logistics-v1#chunk-000",
+      "top1_score": 61.240807,
+      "top1_strongest_terms": [
+        "停滞",
+        "滞",
+        "异",
+        "异常",
+        "流轨"
+      ]
+    }
+  ],
+  "timing": {
+    "index_build_seconds": 0.001278
+  },
+  "environment": {
+    "python": "3.13.2"
+  },
+  "artifacts": {
+    "traces": "results/day2_bm25_retrieval.jsonl",
+    "summary": "results/day2_bm25_retrieval_summary.json",
+    "dense_comparison": "results/day2_bm25_dense_comparison.csv"
+  }
+}

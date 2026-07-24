@@ -73,10 +73,12 @@ flowchart TB
 - [详细学习计划](../plan.md)
 - [RAG 数据流与 LLM 协同](./01-rag-data-flow.md)
 - [透明 Dense RAG：从文档切分到证据约束生成](./03-transparent-dense-rag.md)
+- [先进检索与重排：从 BM25 到 Hybrid RAG](./04-advanced-retrieval-and-reranking.md)
 - [RAG© 论文笔记](./02-ragc-paper.md)
 
 ## 5. 建议阅读顺序
 
 1. 先阅读 [RAG 数据流与 LLM 协同](./01-rag-data-flow.md)，建立组件边界和水印传播链的整体认识；
 2. 再阅读 [透明 Dense RAG](./03-transparent-dense-rag.md)，把数据流落实到可运行代码、指标和故障归因；
-3. 最后阅读 [RAG© 论文笔记](./02-ragc-paper.md)，将透明 RAG 的观测点映射到版权验证方法。
+3. 然后阅读 [先进检索与重排](./04-advanced-retrieval-and-reranking.md)，比较 BM25 与 Dense 的排名机制；
+4. 最后阅读 [RAG© 论文笔记](./02-ragc-paper.md)，将透明 RAG 的观测点映射到版权验证方法。

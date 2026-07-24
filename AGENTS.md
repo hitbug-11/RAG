@@ -360,11 +360,11 @@ RAG/
 - 最后更新：2026-07-24
 - 当前计划：`plan.md`
 - 当前阶段：第 2 个学习日的先进检索与水印检索几何
-- 当前任务：实现 BM25，并在同一批 Chunk 和问题上与 Dense Retrieval 对照
-- 已完成任务：已完成 RAG 数据流、参数知识冲突、透明切分、Qwen3-Embedding + FAISS、Context Packing、Prompt Builder、Qwen3-8B 生成，以及 5 个问题的 20 条基础条件矩阵和 10 条诊断 Trace；已归因 Retriever 排名、上游证据完整性与 Generator 冲突处理三类故障
-- 当前交付物：已创建透明 Dense RAG 全部组件、30 条完整 Generator Trace、条件矩阵 CSV 与汇总、固定 revision 和离线缓存记录，以及结合关键代码、运行结果和故障归因的教程章节
-- 当前薄弱点：尚未实现 BM25、Hybrid/RRF 和 Reranker；尚未量化水印 Chunk 在不同检索器中的 Rank、分数间隔和迁移率
-- 下一步：在 12 个现有 Chunk 上实现透明 BM25，先验证词项匹配与分数，再与当前 Dense Top-5 逐问题比较
+- 当前任务：实现 BM25 + Dense 的 RRF Hybrid，并比较融合前后的 Chunk 排名
+- 已完成任务：已完成 RAG 数据流、参数知识冲突、透明 Dense RAG 与故障归因；新增透明 BM25，在相同 12 个 Chunk 和 5 个问题上完成 Dense 对照，4 个单元测试通过
+- 当前交付物：已创建透明 Dense RAG 与 BM25 组件、30 条 Generator Trace、BM25 Top-5 Trace、BM25/Dense 对照 CSV，以及包含核心代码、数据流、结果和水印联系的两篇教程章节
+- 当前薄弱点：尚未实现 Hybrid/RRF 和 Reranker；当前 BM25 只在 5 个措辞接近正文的问题上验证；尚未量化水印 Chunk 在不同检索器中的 Rank、分数间隔和迁移率
+- 下一步：使用稳定 Chunk ID 融合当前 BM25 与 Dense Top-k 排名，验证 RRF 公式、并列处理和逐问题排名变化
 - Git 状态：已初始化 `main` 分支并跟踪 `origin/main`；初始学习计划和维护文档已提交并推送
 
 ## 变更记录
@@ -390,3 +390,4 @@ RAG/
 - 2026-07-24：将两天的参数知识冲突、透明切分、Dense Retrieval、Context Packing 和 Qwen3-8B 生成实验整理为独立教程章节 `notes/03-transparent-dense-rag.md`，并同步笔记导航与 README。
 - 2026-07-24：完成 5 问题的 20 条基础上下文矩阵，并追加反序冲突和真实 Dense Top-1 共 10 条诊断 Trace；No RAG、Gold 和 Wrong Context 行为均为 5/5 一致，冲突拒答率为 5/10，发现内容相关的证据顺序效应。
 - 2026-07-24：完成 Retriever Chunk 排名、上游证据完整性和 Generator 冲突处理三类故障归因；Day 1 透明 Vanilla RAG 基线闭环，进入 Day 2 的 BM25、Hybrid 与 Reranker 主线。
+- 2026-07-24：完成透明 BM25 与 Dense 同数据对照；BM25 的 Gold Answer Chunk Recall@1 为 1.0，Dense 为 0.8，两者 Top-1 Chunk 一致率为 0.4；新增 Day 2 教程笔记首章，下一实验进入 RRF Hybrid。

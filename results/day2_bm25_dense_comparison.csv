@@ -1,0 +1,6 @@
+question_id,bm25_top1_chunk_id,dense_top1_chunk_id,top1_same_chunk,bm25_gold_document_rank,dense_gold_document_rank,bm25_gold_answer_rank,dense_gold_answer_rank,bm25_top1_score,dense_top1_score
+q01,qinglan-refund-v1#chunk-001,qinglan-refund-v1#chunk-000,False,1,1,1,2,35.066793,0.772848
+q02,qinglan-invoice-v1#chunk-000,qinglan-invoice-v1#chunk-001,False,1,1,1,1,41.847307,0.792988
+q03,qinglan-membership-v1#chunk-001,qinglan-membership-v1#chunk-001,True,1,1,1,1,47.057431,0.833556
+q04,qinglan-warranty-v1#chunk-000,qinglan-warranty-v1#chunk-000,True,1,1,1,1,47.143824,0.866461
+q05,qinglan-logistics-v1#chunk-000,qinglan-logistics-v1#chunk-001,False,1,1,1,1,61.240807,0.746665

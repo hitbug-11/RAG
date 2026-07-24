@@ -190,7 +190,7 @@ Query Rewrite 前后对照移至第 3 天，与 Multi-query、Context Compressio
 
 #### 0:00-1:00：检索原理
 
-- [ ] BM25 与词项匹配；
+- [x] BM25 与词项匹配；
 - [ ] 双塔 Dense Retrieval；
 - [ ] Cosine、Inner Product 与归一化；
 - [ ] ANN、FAISS Flat/HNSW/IVF 的基本差异；
@@ -199,8 +199,8 @@ Query Rewrite 前后对照移至第 3 天，与 Multi-query、Context Compressio
 
 #### 1:00-3:00：实现四条检索管线
 
-- [ ] BM25；
-- [ ] Qwen3/BGE Dense；
+- [x] BM25；
+- [x] Qwen3/BGE Dense；
 - [ ] BM25 + Dense + RRF；
 - [ ] Hybrid Top-30 + Qwen3 Reranker Top-5。
 
