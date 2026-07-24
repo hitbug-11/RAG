@@ -167,7 +167,15 @@ def main() -> None:
         "retriever": "BM25 + Dense RRF",
         "parameters": {
             "rrf_k": args.rrf_k,
-            "source_depth": 5,
+            "source_depths": {
+                source_name: sorted(
+                    {
+                        trace["source_depths"][source_name]
+                        for trace in traces
+                    }
+                )
+                for source_name in traces[0]["source_names"]
+            },
             "output_top_k": args.top_k,
         },
         "metrics": {

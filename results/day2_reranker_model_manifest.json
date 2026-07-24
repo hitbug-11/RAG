@@ -1,0 +1,24 @@
+{
+  "repo_id": "Qwen/Qwen3-Reranker-0.6B",
+  "revision": "5340c0261aa49a842d1bff01db91ce407bda87a2",
+  "source": "https://huggingface.co/Qwen/Qwen3-Reranker-0.6B",
+  "license": "apache-2.0",
+  "server_snapshot_path": "/data/haojiachen/rag/models/huggingface/hub/models--Qwen--Qwen3-Reranker-0.6B/snapshots/5340c0261aa49a842d1bff01db91ce407bda87a2",
+  "snapshot_file_count": 9,
+  "model_weight": {
+    "filename": "model.safetensors",
+    "size_bytes": 1191588280,
+    "sha256": "27cd75a405b9c1b46b59abfd88aaa209e6fed2a1972cde9b70e7659537c5e65b"
+  },
+  "transfer": {
+    "reason": "The server connection to the Hugging Face API was reset during TLS negotiation twice.",
+    "method": "Downloaded the pinned official snapshot to a local temporary directory, then copied the nine snapshot files into the project-scoped server cache.",
+    "server_sha256_verified": true
+  },
+  "offline_validation": {
+    "HF_HUB_OFFLINE": "1",
+    "status": "passed",
+    "model_load_seconds": 1.079,
+    "gpu": "NVIDIA L20"
+  }
+}

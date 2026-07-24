@@ -21,6 +21,10 @@ MODELS = [
         "repo_id": "Qwen/Qwen3-8B",
         "revision": "b968826d9c46dd6066d109eabc6255188de91218",
     },
+    {
+        "repo_id": "Qwen/Qwen3-Reranker-0.6B",
+        "revision": "5340c0261aa49a842d1bff01db91ce407bda87a2",
+    },
 ]
 REQUIRED_PROJECT_PATHS = (
     "HF_HOME",
@@ -54,6 +58,11 @@ def directory_stats(snapshot_path: Path) -> dict[str, Any]:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
+        "--model-id",
+        choices=[model["repo_id"] for model in MODELS],
+        help="Download one pinned model; omit to verify/download all models.",
+    )
+    parser.add_argument(
         "--summary",
         type=Path,
         default=Path("results/server_model_downloads.json"),
@@ -68,9 +77,14 @@ def main() -> None:
         for variable_name in REQUIRED_PROJECT_PATHS
     }
     hub_cache = Path(resolved_paths["HF_HUB_CACHE"])
+    selected_models = [
+        model
+        for model in MODELS
+        if args.model_id is None or model["repo_id"] == args.model_id
+    ]
 
     downloads = []
-    for model in MODELS:
+    for model in selected_models:
         snapshot_path = Path(
             snapshot_download(
                 repo_id=model["repo_id"],

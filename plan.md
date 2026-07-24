@@ -191,10 +191,10 @@ Query Rewrite 前后对照移至第 3 天，与 Multi-query、Context Compressio
 #### 0:00-1:00：检索原理
 
 - [x] BM25 与词项匹配；
-- [ ] 双塔 Dense Retrieval；
-- [ ] Cosine、Inner Product 与归一化；
+- [x] 双塔 Dense Retrieval；
+- [x] Cosine、Inner Product 与归一化；
 - [ ] ANN、FAISS Flat/HNSW/IVF 的基本差异；
-- [ ] Cross-Encoder/LLM Reranker；
+- [x] Cross-Encoder/LLM Reranker；
 - [x] RRF 融合。
 
 #### 1:00-3:00：实现四条检索管线
@@ -202,7 +202,9 @@ Query Rewrite 前后对照移至第 3 天，与 Multi-query、Context Compressio
 - [x] BM25；
 - [x] Qwen3/BGE Dense；
 - [x] BM25 + Dense + RRF；
-- [ ] Hybrid Top-30 + Qwen3 Reranker Top-5。
+- [x] Hybrid 全量 Top-12 + Qwen3 Reranker Top-5。
+
+> 2026-07-24：当前受控知识库总共只有 12 个 Chunk，因此将原 Top-30 候选深度调整为全量 Top-12，而不是复制候选凑数。BM25 与 Dense 均输出完整 12 Chunk 排名，经 RRF 后使用固定 revision 的 Qwen3-Reranker-0.6B 联合打分并输出 Top-5。Answer Chunk Recall@1 从 Hybrid 的 0.8 提升到 1.0，q01 正确证据由 Rank 2 提升到 Rank 1。
 
 #### 3:00-4:00：水印检索实验
 

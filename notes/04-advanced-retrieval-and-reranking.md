@@ -1,11 +1,12 @@
 # 先进检索与重排：从 BM25 到 Hybrid RAG
 
-本笔记围绕同一批 Chunk 和问题，逐步实现并比较 Sparse、Dense、Hybrid 与 Reranked Retrieval。每完成一个可复现实验，就增加一个教程章节；当前已经建立透明 BM25 基线，并使用 RRF 融合 BM25 与 Dense 排名，重点解释词项、语义与跨检索器共识如何共同影响最终候选。
+本笔记围绕同一批 Chunk 和问题，逐步实现并比较 Sparse、Dense、Hybrid 与 Reranked Retrieval。每完成一个可复现实验，就增加一个教程章节；当前已经建立透明 BM25、RRF Hybrid 和 Qwen3 Reranker 管线，重点解释词项、向量语义、跨检索器共识与 Query–Chunk 联合打分如何共同影响最终候选。
 
 ## 知识点速查
 
 - [1. 透明 BM25 与 Dense 对照实验](#1-透明-bm25-与-dense-对照实验)
 - [2. BM25 + Dense 的 RRF Hybrid 实验](#2-bm25--dense-的-rrf-hybrid-实验)
+- [3. Qwen3 Reranker 全量候选重排实验](#3-qwen3-reranker-全量候选重排实验)
 - [小结](#小结)
 - [参考资料](#参考资料)
 
@@ -483,13 +484,283 @@ RRF 对水印信号有三种典型作用：
 - overlap 让 q02、q05 的两个相邻 Chunk 都含答案，掩盖了并列对端到端问答的潜在影响；
 - RRF 只重排候选，不读取 Query–Chunk 内容，无法替代 Cross-Encoder Reranker。
 
+## 3. Qwen3 Reranker 全量候选重排实验
+
+### 3.1 知识定位：Reranker 与 Dense Retriever 的根本区别
+
+Dense Retriever 使用双塔结构分别编码 Query 和 Chunk：
+
+```text
+Query ──Query Encoder────→ q
+                              ┐
+                              ├─ Inner Product / Cosine
+                              ┘
+Chunk ──Document Encoder─→ d
+```
+
+Chunk 向量可以离线预计算，在线只需编码 Query 并搜索向量索引。这使 Dense Retriever 适合在大规模知识库中快速召回候选，但 Query 与 Chunk 在编码阶段没有逐 Token 交互。
+
+Reranker 则把两者放进同一个模型输入：
+
+```text
+[Instruction, Query, Chunk] → Qwen3 Reranker → relevance score
+```
+
+模型的 Self-Attention 可以直接比较 Query 中的要求和 Chunk 中的具体证据。代价是每个 Query–Chunk 对都需要单独经过模型，不能提前为所有 Query 预计算一个通用分数。因此典型系统先用 BM25/Dense 召回几十或几百个候选，再用 Reranker 做较昂贵的精排。
+
+| 组件 | 输入方式 | 能否预计算 Chunk 表示 | 主要职责 |
+|---|---|---|---|
+| Dense Retriever | Query、Chunk 分别编码 | 可以 | 从全库快速召回 |
+| RRF | 只读取多个来源的 Rank | 不涉及模型表示 | 融合异构 Retriever |
+| Qwen3 Reranker | Query 与一个 Chunk 联合输入 | 不可以 | 在小候选集内精排 |
+
+### 3.2 完整重排数据流
+
+```mermaid
+flowchart LR
+    Q["Query"] --> BM["BM25 全量 Top-12"]
+    Q --> DE["Dense 全量 Top-12"]
+    BM --> RRF["RRF 候选并集<br/>12 个 Chunk"]
+    DE --> RRF
+    RRF --> PAIR["构造 12 个<br/>Query–Chunk Pair"]
+    PAIR --> QR["Qwen3-Reranker-0.6B<br/>联合编码"]
+    QR --> LOGIT["yes/no logits"]
+    LOGIT --> SCORE["logit difference<br/>与 relevance probability"]
+    SCORE --> SORT["按相关性重新排序"]
+    SORT --> TOP5["输出 Top-5<br/>保留全量 12 个得分"]
+    TOP5 --> EVAL["Answer Rank / Recall / MRR<br/>Top-1 Margin"]
+```
+
+原计划使用 Hybrid Top-30。当前受控知识库总共只有 12 个 Chunk，因此没有伪造或复制候选来凑满 30，而是把两个 Retriever 的全量 Top-12 排名交给 RRF，再对 12 个不同 Chunk 全部重排，最后输出 Top-5。这是当前语料下比“已有 Top-5 再重排”更严格的等价实验。
+
+### 3.3 Qwen3 Reranker 如何产生分数
+
+模型输入由三个显式字段构成：
+
+```text
+<Instruct>: Given a user question, retrieve passages that contain
+            sufficient evidence to answer the question
+<Query>: 青岚商城普通商品签收后多久可以申请无理由退款？
+<Document>: 退款期限：普通商品自物流签收次日零时起计算……
+```
+
+外层 Chat Template 要求模型判断 Document 是否满足 Query 和 Instruction，并且答案只能是 `yes` 或 `no`。实验不调用文本生成，而是直接读取最后位置上两个 Token 的 logits：
+
+\[
+z_{\text{yes}},\quad z_{\text{no}}
+\]
+
+用于排序的原始分数是 logit difference：
+
+\[
+s(q,d)=z_{\text{yes}}-z_{\text{no}}
+\]
+
+同时记录便于理解的相关概率：
+
+\[
+p(\text{relevant}\mid q,d)
+=
+\frac{e^{z_{\text{yes}}}}
+{e^{z_{\text{yes}}}+e^{z_{\text{no}}}}
+=
+\sigma\left(s(q,d)\right)
+\]
+
+因为 Sigmoid 是单调函数，按 \(s\) 或 \(p\) 排序结果相同。本实验优先分析原始 \(s\) 和候选间的 logit margin，概率只作为辅助解释。
+
+### 3.4 核心实现：从最终 Token logits 取分
+
+透明实现位于 [`scripts/qwen_reranker.py`](../scripts/qwen_reranker.py)。Tokenize 后，程序为每个 Query–Chunk 对添加固定 Prefix 和 Suffix，再进行左侧 Padding：
+
+```python
+input_ids = [
+    prefix_tokens + pair_ids + suffix_tokens
+    for pair_ids in tokenized["input_ids"]
+]
+model_inputs = tokenizer.pad(
+    {"input_ids": input_ids},
+    padding=True,
+    return_attention_mask=True,
+    return_tensors="pt",
+)
+```
+
+模型前向传播后，只读取序列最后位置：
+
+```python
+final_logits = model(**model_inputs).logits[:, -1, :]
+yes_logits = final_logits[:, yes_token_id].float()
+no_logits = final_logits[:, no_token_id].float()
+
+binary_logits = torch.stack([no_logits, yes_logits], dim=1)
+probabilities = torch.softmax(binary_logits, dim=1)[:, 1]
+logit_differences = yes_logits - no_logits
+```
+
+最终排序键为：
+
+```python
+(
+    -reranker_logit_difference,
+    hybrid_rank,
+    chunk_id,
+)
+```
+
+模型分数相同时才回退到 Hybrid Rank 和稳定 Chunk ID。输出同时保存重排前后的 Rank、RRF 分数、Reranker logit、概率和输入 Token 数，因此一次排序变化可以追溯到完整的前后状态。
+
+### 3.5 模型与运行环境
+
+| 项目 | 固定值 |
+|---|---|
+| 模型 | `Qwen/Qwen3-Reranker-0.6B` |
+| Revision | `5340c0261aa49a842d1bff01db91ce407bda87a2` |
+| 权重 SHA-256 | `27cd75a405b9c1b4…c5e65b` |
+| 参数精度 | BF16 |
+| 最大输入 | 8192 Token |
+| 候选深度 | 全量 12 |
+| 输出深度 | Top-5 |
+| GPU | 单张 NVIDIA L20 |
+| Transformers | 4.57.6 |
+| Torch | 2.6.0+cu124 |
+| Python | 3.10.19 |
+
+模型快照只保存在 `/data/haojiachen/rag/models/huggingface`，正式实验设置 `HF_HUB_OFFLINE=1` 并成功加载。固定 Revision、权重哈希与离线验证记录见 [`day2_reranker_model_manifest.json`](../results/day2_reranker_model_manifest.json)。
+
+### 3.6 运行与自动验证
+
+本地不加载模型权重，只验证格式化和排序逻辑：
+
+```bash
+PYTHONPATH=scripts python -m unittest discover -s tests -v
+```
+
+新增的 4 个测试覆盖：
+
+1. Instruction、Query、Document 字段格式；
+2. 模型分数能够覆盖原 Hybrid Rank；
+3. 模型分数相同时回退到 Hybrid Rank；
+4. 候选数和分数数不一致时拒绝运行。
+
+连同 BM25 与 RRF 测试，当前 13 个测试全部通过。服务器正式运行命令为：
+
+```bash
+HF_HUB_OFFLINE=1 bash scripts/run_server_python.sh \
+  scripts/run_qwen_reranker.py \
+  --hybrid-traces tmp/day2_rrf_hybrid_top12.jsonl \
+  --candidate-depth 12 \
+  --output-top-k 5
+```
+
+实验产物包括：
+
+- [`day2_qwen_reranker.jsonl`](../results/day2_qwen_reranker.jsonl)：5 个问题的完整 12 候选分数、格式化输入和 Top-5；
+- [`day2_qwen_reranker_summary.json`](../results/day2_qwen_reranker_summary.json)：指标、逐问题 Margin、耗时和环境；
+- [`day2_reranker_comparison.csv`](../results/day2_reranker_comparison.csv)：Hybrid 与 Reranker 的逐问题 Rank 变化。
+
+### 3.7 四条管线的运行结果
+
+| 指标 | BM25 | Dense | RRF Hybrid | Qwen3 Reranker |
+|---|---:|---:|---:|---:|
+| Gold Answer Chunk Recall@1 | 1.0 | 0.8 | 0.8 | 1.0 |
+| Gold Answer Chunk Recall@3 | 1.0 | 1.0 | 1.0 | 1.0 |
+| Gold Answer Chunk MRR | 1.0 | 0.9 | 0.9 | 1.0 |
+
+逐问题变化为：
+
+| 问题 | Hybrid Top-1 | Reranker Top-1 | 答案 Rank 变化 | Top-1 Logit Margin |
+|---|---|---|---:|---:|
+| q01 退款 | `refund#chunk-000` | `refund#chunk-001` | 2 → 1 | 1.2500 |
+| q02 发票 | `invoice#chunk-000` | `invoice#chunk-000` | 1 → 1 | 0.2500 |
+| q03 会员 | `membership#chunk-001` | `membership#chunk-001` | 1 → 1 | 5.0625 |
+| q04 保修 | `warranty#chunk-000` | `warranty#chunk-001` | 1 → 1 | 0.5625 |
+| q05 物流 | `logistics#chunk-000` | `logistics#chunk-001` | 1 → 1 | 0.7500 |
+
+5 个问题中有 3 个 Top-1 Chunk 发生变化；只有 q01 的 Gold Answer Rank 真正改善，因为 q04、q05 的相邻 Chunk 都因 overlap 包含答案。
+
+### 3.8 重点案例：Reranker 如何打破 q01 并列
+
+q01 的前三名为：
+
+| Reranker Rank | Chunk | Hybrid Rank | Logit Difference | 概率 | 是否含答案 |
+|---:|---|---:|---:|---:|---|
+| 1 | `refund#chunk-001` | 2 | 6.8125 | 0.998901248 | 是 |
+| 2 | `refund#chunk-002` | 3 | 5.5625 | 0.996175528 | 否 |
+| 3 | `refund#chunk-000` | 1 | 4.3125 | 0.986777246 | 否 |
+
+RRF 只能看到 `chunk-000` 与 `chunk-001` 分别取得 `(BM25 2, Dense 1)` 和 `(BM25 1, Dense 2)`，因此给出相同分数。Reranker 直接读取文本后发现：
+
+- `chunk-001` 同时包含“普通商品、签收、9 个自然日、申请无理由退款”，能够完整回答；
+- `chunk-000` 只包含退款适用范围和申请材料；
+- `chunk-002` 提到不支持无理由退款的例外与审核流程，但没有申请期限。
+
+于是正确证据从 Hybrid Rank 2 提升到 Rank 1，Top-1 与 Top-2 的 logit margin 为 `1.25`。
+
+### 3.9 高概率不等于证据充分
+
+虽然 q01 的正确 Chunk 概率为 `0.9989`，不含具体答案的 `chunk-000` 也得到 `0.9868`。这说明：
+
+1. 当前 yes/no 概率没有在本任务上做校准；
+2. 模型可能把“主题高度相关”也判为高相关；
+3. Sigmoid 在大正 Logit 区域容易饱和，概率差看起来很小；
+4. Reranker 的主要用途是候选间相对排序，不应仅凭固定概率阈值判断“证据充分”。
+
+因此实验同时保存原始 logit difference 和 Top-1 margin。若后续把 Reranker 作为版权 Detector 或过滤器，还需要独立校准集、FPR、ROC/PR 曲线和阈值置信区间。
+
+### 3.10 运行成本
+
+| 项目 | 结果 |
+|---|---:|
+| 模型加载 | 1.079 秒 |
+| 5 个问题、共 60 对候选 | 0.676 秒 |
+| 首个 12 对 Batch | 0.464 秒 |
+| 预热后每个 12 对 Batch | 约 0.045 秒 |
+| 峰值 GPU 显存 | 1.959 GiB |
+
+首个 Batch 包含 CUDA Kernel 初始化等预热成本，因此明显慢于后续 Batch。当前语料很短，不能将这些吞吐数字直接外推到 8K 或 32K 长文本；Reranker 成本会随候选数和序列长度增长。
+
+### 3.11 与知识库版权保护的关系
+
+Reranker 是水印从“被召回”到“进入 Prompt”之间的第二道门：
+
+- 只利用罕见词面提高 BM25 Rank 的水印，若与 Query 的回答关系弱，可能被 Reranker 降级；
+- 只优化 Dense 向量接近性的水印，也可能因联合语义不充分而被过滤；
+- 同时保持自然语义、问题相关性和目标知识的水印，更可能在重排后存活；
+- Reranker Instruction、模型版本、候选深度和输入截断都可能改变水印 Rank；
+- 未经校准的高相关概率不能直接作为所有权信号，否则容易产生误触发和 Spoofing。
+
+因此后续水印实验必须同时记录：
+
+```text
+目标水印 Chunk 的 Retriever Rank
+→ RRF Rank
+→ Reranker Rank 与 Margin
+→ 是否进入最终 Context
+→ 输出或 Detector 是否命中
+```
+
+一个只报告 Dense Top-k 命中的水印方案，尚不能证明它能穿过现代 RAG 的 Reranker。
+
+### 3.12 实验边界与易错点
+
+- 当前只有 5 个问题和 12 个 Chunk，指标仍是机制验证；
+- Top-30 被适配为当前语料的全量 Top-12，尚未测量真实大候选池；
+- 问题措辞接近正文，不能代表同义改写和跨语言查询；
+- 每个条件只运行一次，未测量不同硬件和数值精度下的微小分数变化；
+- 概率未校准，不能直接充当证据充分性阈值；
+- q04、q05 的答案存在于两个 overlap Chunk，Top-1 改变没有影响答案 Recall；
+- 尚未加入正常/水印查询对，不能报告 Reranker 对水印的保留率和误触发率。
+
 ## 小结
 
 本阶段先完成了一个不依赖外部检索库的透明 BM25，并在与 Dense 完全相同的 12 个 Chunk 和 5 个问题上完成对照。BM25 的 Gold Answer Chunk Recall@1 为 1.0，修复了 Dense 在 q01 上“主题正确但证据不完整”的排名错误；两种检索器的 Top-1 Chunk 一致率只有 0.4，证明它们使用的相关性信号确实不同。
 
 随后实现的 RRF 不比较异构原始分数，只累加 BM25 与 Dense 的名次贡献。Hybrid 的 Gold Answer Chunk Recall@1 为 0.8，没有超过 BM25；q01、q02、q05 出现对称 Rank 导致的精确并列，其中 q01 因确定性 ID 规则把不含答案的 Chunk 放在第一。这个结果说明融合本身不会创造新的相关性信息：RRF 可以奖励跨 Retriever 共识，却无法判断对称冲突中哪个来源更可靠。
 
-目前已经建立三条可审计管线：Dense 通过连续语义空间排序，BM25 通过 TF、IDF 和长度归一化排序，RRF 通过来源名次与共识融合。下一步需要让 Reranker 联合读取 Query 与候选 Chunk，验证它能否打破 q01 并列并把真正含答案的证据提升到 Top-1。
+最后，Qwen3 Reranker 对全量 12 个 Hybrid 候选进行 Query–Chunk 联合打分，将 q01 正确证据从 Rank 2 提升到 Rank 1，使 Answer Recall@1 和 MRR 都恢复为 1.0。它还改变了 q04、q05 的 Top-1，但由于 overlap，两题的答案指标不变。高概率在同主题错误 Chunk 上同样饱和，说明 Reranker 应主要用于相对排序，而不能未经校准就充当证据充分性 Detector。
+
+目前已经建立四条可审计管线：Dense 通过连续语义空间排序，BM25 通过 TF、IDF 和长度归一化排序，RRF 通过来源名次与共识融合，Reranker 通过 Query–Chunk 联合交互进行精排。下一阶段需要构造正常/水印查询对，分别测量目标 Chunk 在四条管线中的 Rank、Top-k 命中率、Margin 和跨 Retriever Transfer Rate。
 
 ## 参考资料
 
@@ -498,4 +769,7 @@ RRF 对水印信号有三种典型作用：
 - [BM25/Dense 对照实验入口](../scripts/run_bm25_retrieval.py)
 - [RRF 融合实现](../scripts/rrf_fusion.py)
 - [RRF Hybrid 实验入口](../scripts/run_rrf_hybrid_retrieval.py)
+- [Qwen3 Reranker 实现](../scripts/qwen_reranker.py)
+- [Qwen3 Reranker 实验入口](../scripts/run_qwen_reranker.py)
+- [Qwen3-Reranker-0.6B 模型卡](https://huggingface.co/Qwen/Qwen3-Reranker-0.6B)
 - Robertson, S. E. and Zaragoza, H. *The Probabilistic Relevance Framework: BM25 and Beyond*. 2009.

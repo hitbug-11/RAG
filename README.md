@@ -33,8 +33,8 @@
 | 项目 | 状态 |
 |---|---|
 | 当前阶段 | 第 2 个学习日：先进检索与水印检索几何 |
-| 当前任务 | 使用 Qwen3 Reranker 重排 Hybrid 候选 |
-| 下一交付物 | BM25/Dense/Hybrid/Reranker 检索对照 |
+| 当前任务 | 快速检查 FAISS Flat/HNSW/IVF，随后构造正常/水印查询 |
+| 下一交付物 | 水印 Chunk Rank、Margin 与跨 Retriever 迁移率 |
 | 详细计划 | [plan.md](./plan.md) |
 | 研究主线 | RAG 知识库版权保护与所有权验证 |
 
@@ -81,11 +81,13 @@ RAG/
 │   ├── dense_retriever.py   # Qwen3 + FAISS 可复用 Dense Retriever
 │   ├── download_server_models.py # 固定 revision 的服务器模型下载
 │   ├── qwen_generator.py    # 单卡 Qwen3 Generator 与输出解析
+│   ├── qwen_reranker.py     # Query–Chunk 联合打分的 Qwen3 Reranker
 │   ├── rrf_fusion.py        # 可解释 Reciprocal Rank Fusion
 │   ├── run_context_packing.py # Top-1/Top-2 Prompt 对照实验
 │   ├── run_bm25_retrieval.py # BM25 评测与 Dense 对照
 │   ├── run_dense_retrieval.py # 5 问题 Top-k 检索评测
 │   ├── run_qwen_generator_probe.py # q01 Top-1/Top-2 生成对照
+│   ├── run_qwen_reranker.py # 全量 Hybrid 候选重排实验
 │   ├── run_rag_condition_matrix.py # 5 问题的 30 条生成条件矩阵
 │   ├── run_rrf_hybrid_retrieval.py # BM25 + Dense RRF 对照实验
 │   ├── run_server_python.sh # 约束服务器缓存和临时目录
@@ -119,7 +121,7 @@ RAG/
 
 ## 复现说明
 
-当前已完成透明 Dense RAG 的切分、Embedding、FAISS、Context Packing、生成实验，以及同数据上的透明 BM25 和 RRF Hybrid 对照。教程与复现命令见 [透明 Dense RAG：从文档切分到证据约束生成](./notes/03-transparent-dense-rag.md) 和 [先进检索与重排：从 BM25 到 Hybrid RAG](./notes/04-advanced-retrieval-and-reranking.md)。实验持续记录：
+当前已完成透明 Dense RAG 的切分、Embedding、FAISS、Context Packing、生成实验，以及同数据上的透明 BM25、RRF Hybrid 和 Qwen3 Reranker 对照。当前知识库的 12 个 Chunk 全部进入重排候选池，最终输出 Top-5。教程与复现命令见 [透明 Dense RAG：从文档切分到证据约束生成](./notes/03-transparent-dense-rag.md) 和 [先进检索与重排：从 BM25 到 Hybrid RAG](./notes/04-advanced-retrieval-and-reranking.md)。实验持续记录：
 
 - Python 与依赖版本；
 - 数据来源和许可证；
@@ -139,6 +141,7 @@ RAG/
 
 ## 最近更新
 
+- 2026-07-24：完成固定 revision 的 Qwen3-Reranker-0.6B 全量 Top-12 → Top-5 实验；q01 正确证据由 Rank 2 升至 Rank 1，Answer Recall@1 与 MRR 均达到 1.0；记录未校准概率饱和、Logit Margin、离线模型哈希与运行成本，教程新增第三章；
 - 2026-07-24：完成 BM25 + Dense 的透明 RRF Hybrid；Hybrid Gold Answer Chunk Recall@1 为 0.8，q01、q02、q05 出现对称 Rank 精确并列，确认融合不保证优于最佳单路；Day 2 教程新增 RRF 完整章节；
 - 2026-07-24：完成透明中文 BM25 与 Dense 同数据对照；5 个问题的 Gold Answer Chunk Recall@1 为 1.0，修复 Dense 的 q01 Rank-2 证据问题，两者 Top-1 Chunk 一致率为 0.4；新增 Day 2 教程首章；
 - 2026-07-24：完成 20 条基础上下文矩阵和 10 条附加诊断 Trace；No RAG 5/5 拒答、Gold 5/5 正确、Wrong 5/5 传播反事实，冲突证据仅 5/10 拒答，并发现内容相关的顺序效应；

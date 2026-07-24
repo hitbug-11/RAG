@@ -1,0 +1,98 @@
+{
+  "retriever": "BM25 + Dense RRF + Qwen3 Reranker",
+  "model": "Qwen/Qwen3-Reranker-0.6B",
+  "revision": "5340c0261aa49a842d1bff01db91ce407bda87a2",
+  "instruction": "Given a user question, retrieve passages that contain sufficient evidence to answer the question",
+  "parameters": {
+    "requested_candidate_depth": 12,
+    "actual_candidate_depths": [
+      12
+    ],
+    "output_top_k": 5,
+    "max_length": 8192,
+    "dtype": "bfloat16"
+  },
+  "metrics": {
+    "question_count": 5,
+    "document_recall_at_1": 1.0,
+    "document_recall_at_3": 1.0,
+    "answer_recall_at_1": 1.0,
+    "answer_recall_at_3": 1.0,
+    "document_mrr": 1.0,
+    "answer_mrr": 1.0,
+    "top1_changed_question_count": 3,
+    "answer_rank_improved_question_count": 1
+  },
+  "per_question": [
+    {
+      "question_id": "q01",
+      "gold_answer_best_rank": 1,
+      "top1_chunk_id": "qinglan-refund-v1#chunk-001",
+      "top1_logit_difference": 6.8125,
+      "top1_relevance_probability": 0.998901248,
+      "top1_logit_margin": 1.25,
+      "top1_hybrid_rank": 2,
+      "scoring_seconds": 0.463722,
+      "peak_gpu_memory_gib": 1.959
+    },
+    {
+      "question_id": "q02",
+      "gold_answer_best_rank": 1,
+      "top1_chunk_id": "qinglan-invoice-v1#chunk-000",
+      "top1_logit_difference": 8.5625,
+      "top1_relevance_probability": 0.999808967,
+      "top1_logit_margin": 0.25,
+      "top1_hybrid_rank": 1,
+      "scoring_seconds": 0.04525,
+      "peak_gpu_memory_gib": 1.935
+    },
+    {
+      "question_id": "q03",
+      "gold_answer_best_rank": 1,
+      "top1_chunk_id": "qinglan-membership-v1#chunk-001",
+      "top1_logit_difference": 7.9375,
+      "top1_relevance_probability": 0.999642968,
+      "top1_logit_margin": 5.0625,
+      "top1_hybrid_rank": 1,
+      "scoring_seconds": 0.045622,
+      "peak_gpu_memory_gib": 1.959
+    },
+    {
+      "question_id": "q04",
+      "gold_answer_best_rank": 1,
+      "top1_chunk_id": "qinglan-warranty-v1#chunk-001",
+      "top1_logit_difference": 8.125,
+      "top1_relevance_probability": 0.999704063,
+      "top1_logit_margin": 0.5625,
+      "top1_hybrid_rank": 2,
+      "scoring_seconds": 0.044694,
+      "peak_gpu_memory_gib": 1.944
+    },
+    {
+      "question_id": "q05",
+      "gold_answer_best_rank": 1,
+      "top1_chunk_id": "qinglan-logistics-v1#chunk-001",
+      "top1_logit_difference": 8.625,
+      "top1_relevance_probability": 0.99982053,
+      "top1_logit_margin": 0.75,
+      "top1_hybrid_rank": 2,
+      "scoring_seconds": 0.044956,
+      "peak_gpu_memory_gib": 1.953
+    }
+  ],
+  "timing": {
+    "model_load_seconds": 1.079,
+    "five_question_experiment_seconds": 0.676
+  },
+  "environment": {
+    "python": "3.10.19",
+    "torch": "2.6.0+cu124",
+    "transformers": "4.57.6",
+    "gpu": "NVIDIA L20"
+  },
+  "artifacts": {
+    "traces": "results/day2_qwen_reranker.jsonl",
+    "summary": "results/day2_qwen_reranker_summary.json",
+    "comparison": "results/day2_reranker_comparison.csv"
+  }
+}

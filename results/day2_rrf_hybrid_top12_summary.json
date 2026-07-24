@@ -1,0 +1,102 @@
+{
+  "retriever": "BM25 + Dense RRF",
+  "parameters": {
+    "rrf_k": 60,
+    "source_depths": {
+      "bm25": [
+        12
+      ],
+      "dense": [
+        12
+      ]
+    },
+    "output_top_k": 12
+  },
+  "metrics": {
+    "question_count": 5,
+    "document_recall_at_1": 1.0,
+    "document_recall_at_3": 1.0,
+    "answer_recall_at_1": 0.8,
+    "answer_recall_at_3": 1.0,
+    "document_mrr": 1.0,
+    "answer_mrr": 0.9,
+    "top1_agreement_with_bm25": 0.8,
+    "top1_agreement_with_dense": 0.6,
+    "top_score_tie_question_count": 3,
+    "top_score_tie_question_ids": [
+      "q01",
+      "q02",
+      "q05"
+    ]
+  },
+  "per_question": [
+    {
+      "question_id": "q01",
+      "gold_answer_best_rank": 2,
+      "top1_chunk_id": "qinglan-refund-v1#chunk-000",
+      "top1_score": 0.032522475,
+      "top1_source_ranks": {
+        "bm25": 2,
+        "dense": 1
+      },
+      "top_score_tied": true,
+      "candidate_union_size": 12
+    },
+    {
+      "question_id": "q02",
+      "gold_answer_best_rank": 1,
+      "top1_chunk_id": "qinglan-invoice-v1#chunk-000",
+      "top1_score": 0.032522475,
+      "top1_source_ranks": {
+        "bm25": 1,
+        "dense": 2
+      },
+      "top_score_tied": true,
+      "candidate_union_size": 12
+    },
+    {
+      "question_id": "q03",
+      "gold_answer_best_rank": 1,
+      "top1_chunk_id": "qinglan-membership-v1#chunk-001",
+      "top1_score": 0.032786885,
+      "top1_source_ranks": {
+        "bm25": 1,
+        "dense": 1
+      },
+      "top_score_tied": false,
+      "candidate_union_size": 12
+    },
+    {
+      "question_id": "q04",
+      "gold_answer_best_rank": 1,
+      "top1_chunk_id": "qinglan-warranty-v1#chunk-000",
+      "top1_score": 0.032786885,
+      "top1_source_ranks": {
+        "bm25": 1,
+        "dense": 1
+      },
+      "top_score_tied": false,
+      "candidate_union_size": 12
+    },
+    {
+      "question_id": "q05",
+      "gold_answer_best_rank": 1,
+      "top1_chunk_id": "qinglan-logistics-v1#chunk-000",
+      "top1_score": 0.032522475,
+      "top1_source_ranks": {
+        "bm25": 1,
+        "dense": 2
+      },
+      "top_score_tied": true,
+      "candidate_union_size": 12
+    }
+  ],
+  "environment": {
+    "python": "3.13.2"
+  },
+  "artifacts": {
+    "traces": "results/day2_rrf_hybrid_top12.jsonl",
+    "summary": "results/day2_rrf_hybrid_top12_summary.json",
+    "retriever_comparison": "/private/tmp/day2_rrf_top12_comparison.csv"
+  }
+}

@@ -360,11 +360,11 @@ RAG/
 - 最后更新：2026-07-24
 - 当前计划：`plan.md`
 - 当前阶段：第 2 个学习日的先进检索与水印检索几何
-- 当前任务：使用 Qwen3 Reranker 重排 Hybrid 候选，并比较重排前后的证据 Rank
-- 已完成任务：已完成透明 Dense、BM25 与 RRF Hybrid；RRF 使用稳定 Chunk ID 融合两路 Top-5，9 个单元测试通过，并定位 q01、q02、q05 的对称 Rank 并列
-- 当前交付物：已创建 Dense、BM25、RRF 三条可审计检索管线；保存三路逐问题对照、Hybrid 来源贡献与并列诊断；Day 2 教程已包含 BM25 和 RRF 两个完整实验章节
-- 当前薄弱点：尚未实现 Reranker；当前实验只有 5 个措辞接近正文的问题；RRF 输入深度仅为 Top-5；尚未量化水印 Chunk 的 Rank、分数间隔和跨 Retriever 迁移率
-- 下一步：在远程 L20 上固定 Qwen3 Reranker 模型 revision，对当前 Hybrid 候选执行 Query–Chunk 联合打分，重点检查能否打破 q01 并列
+- 当前任务：完成 FAISS Flat/HNSW/IVF 的快速机制检查，随后构造至少 20 对正常/水印查询
+- 已完成任务：已完成透明 Dense、BM25、RRF Hybrid 与 Qwen3 Reranker；全量 12 Chunk 经 Qwen3-Reranker-0.6B 重排后输出 Top-5，q01 正确证据由 Rank 2 升至 Rank 1，Answer Recall@1/MRR 均为 1.0，13 个本地测试通过
+- 当前交付物：已创建四条可审计检索管线；保存全量 BM25/Dense/RRF 候选、60 个 Query–Chunk 重排得分、模型固定 revision 与权重哈希、四路指标对照；Day 2 教程已包含三个完整实验章节
+- 当前薄弱点：尚未完成 ANN 索引差异检查；当前只有 5 个措辞接近正文的问题；Reranker 概率未校准；尚未构造正常/水印查询并量化 Rank、分数间隔和跨 Retriever 迁移率
+- 下一步：先用当前 12 个向量做 Flat/HNSW/IVF 接口与近似行为快速检查，明确小数据上只能验证机制；随后开始 20 对正常/水印查询与目标 Chunk 的受控设计
 - Git 状态：已初始化 `main` 分支并跟踪 `origin/main`；初始学习计划和维护文档已提交并推送
 
 ## 变更记录
@@ -392,3 +392,4 @@ RAG/
 - 2026-07-24：完成 Retriever Chunk 排名、上游证据完整性和 Generator 冲突处理三类故障归因；Day 1 透明 Vanilla RAG 基线闭环，进入 Day 2 的 BM25、Hybrid 与 Reranker 主线。
 - 2026-07-24：完成透明 BM25 与 Dense 同数据对照；BM25 的 Gold Answer Chunk Recall@1 为 1.0，Dense 为 0.8，两者 Top-1 Chunk 一致率为 0.4；新增 Day 2 教程笔记首章，下一实验进入 RRF Hybrid。
 - 2026-07-24：完成 BM25 + Dense 的透明 RRF Hybrid；Hybrid Answer Recall@1 为 0.8，q01、q02、q05 因 Rank 1/2 对称交换出现精确并列，证明融合并不保证优于最佳单路；教程新增 RRF 章节，下一实验进入 Qwen3 Reranker。
+- 2026-07-24：完成固定 revision 的 Qwen3-Reranker-0.6B 全量候选实验；当前 12 个 Chunk 全部进入候选池，输出 Top-5，q01 正确证据由 Rank 2 升至 Rank 1，Answer Recall@1/MRR 达到 1.0；13 个测试通过，教程新增 Reranker 第三章。
