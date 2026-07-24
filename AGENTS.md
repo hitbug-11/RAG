@@ -361,10 +361,10 @@ RAG/
 - 当前计划：`plan.md`
 - 当前阶段：第 2 个学习日的先进检索与水印检索几何
 - 当前任务：快速检查 FAISS Flat/HNSW/IVF 的基本差异，随后进行水印位置、Chunk Size、Overlap 与向量位移消融
-- 已完成任务：已完成透明 Dense、BM25、RRF Hybrid、Qwen3 Reranker，以及 20 对正常/水印查询的四管线全库排名；已量化目标 Rank、Hit@1/5/10/20、Margin、正常查询误触发、跨检索器条件迁移率和 Reranker 前后变化
-- 当前交付物：四条透明检索管线、20 个可追踪 Canary-style 水印 Chunk、160 条完整检索 Trace、逐对照 CSV、指标汇总，以及包含四个可独立复现实验章节的 Day 2 教程
-- 当前薄弱点：尚未完成 Flat/HNSW/IVF 快速检查；当前 Canary 直接复制事实且占语料 62.5%，正常 Top-5 水印暴露过高；尚未测试水印位置、Chunk Size、Overlap 和向量空间位移
-- 下一步：先用同一组向量解释 Flat/HNSW/IVF 的速度—召回权衡，再固定触发词与事实，对句首/句中/句尾、256/512/1024 Chunk 和 0/64/128 Overlap 做消融
+- 已完成任务：已完成透明 Dense、BM25、RRF Hybrid、Qwen3 Reranker，以及纠正后的 20 组三条件水印实验；四路 Normal Exact FTR@1 均为 0，Trigger-only Hit@5 为 1.0/1.0/1.0/0.95，Verification Hit@1 四路均为 1.0
+- 当前交付物：四条透明检索管线；20 个不复制业务答案的 Canary；显式 Clean Gold 标注；240 条修正版完整 Trace；逐样本 CSV、Rank/Margin/迁移矩阵汇总；包含设计纠错与重新验收的 Day 2 教程
+- 当前薄弱点：Canary 仍占语料 62.5%，触发词与核验口令较显式；尚未完成 Flat/HNSW/IVF 检查，以及水印位置、Chunk Size、Overlap 和向量空间位移消融
+- 下一步：先用同一组向量解释 Flat/HNSW/IVF 的速度—召回权衡，再固定三条件水印设计进行句首/句中/句尾、256/512/1024 Chunk 和 0/64/128 Overlap 消融
 - Git 状态：已初始化 `main` 分支并跟踪 `origin/main`；初始学习计划和维护文档已提交并推送
 
 ## 变更记录
@@ -394,3 +394,6 @@ RAG/
 - 2026-07-24：完成 BM25 + Dense 的透明 RRF Hybrid；Hybrid Answer Recall@1 为 0.8，q01、q02、q05 因 Rank 1/2 对称交换出现精确并列，证明融合并不保证优于最佳单路；教程新增 RRF 章节，下一实验进入 Qwen3 Reranker。
 - 2026-07-24：完成固定 revision 的 Qwen3-Reranker-0.6B 全量候选实验；当前 12 个 Chunk 全部进入候选池，输出 Top-5，q01 正确证据由 Rank 2 升至 Rank 1，Answer Recall@1/MRR 达到 1.0；13 个测试通过，教程新增 Reranker 第三章。
 - 2026-07-24：完成 20 对正常/水印查询的跨检索器迁移实验；BM25、Dense、RRF 水印 Hit@1 均为 1.0，Qwen3 Reranker Hit@1/5 为 0.9/1.0，并确认两个短 Canary 被证据更完整的原始 Chunk 降级；同时发现事实复制型 Canary 的正常 Top-5 暴露过高。
+- 2026-07-24：复核后否定首轮事实复制型 Canary 作为水印有效性实验的资格，将其降级为正对照；修正版改用普通业务查询、触发词控制查询和语义验证查询三条件，并确保 Canary 不复制业务答案、显式记录 Clean Gold Chunk。
+- 2026-07-24：完成修正版三条件水印实验；60 条查询经四路全量排名得到 240 条 Trace，Normal Exact FTR@1 四路均为 0，Trigger-only Hit@5 经 Reranker 从 1.0 降至 0.95，Verification Hit@1 四路均为 1.0；`wm03` 验证了 Reranker 对无答案 Canary 的过滤。
+- 2026-07-24：按教程定位重构 `notes/03-transparent-dense-rag.md`，将原有碎片章节整合为证据传播主线，并保留核心代码及解释、实际运行结果、结果分析和数据流图。

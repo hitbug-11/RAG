@@ -1,10 +1,10 @@
-"""Tests for the paired watermark retrieval dataset and metrics."""
+"""Tests for corrected watermark query triplets and metrics."""
 
 from __future__ import annotations
 
 import unittest
 
-from build_watermark_retrieval_dataset import build_records
+from build_watermark_retrieval_dataset import CLEAN_GOLD_CHUNK_IDS, build_records
 from watermark_retrieval_metrics import (
     summarize_retriever,
     target_diagnostics,
@@ -20,19 +20,34 @@ class WatermarkRetrievalTests(unittest.TestCase):
     def test_dataset_has_twenty_unique_targets_and_triggers(self) -> None:
         clean = [
             {
-                "chunk_id": "clean#0",
-                "document_id": "clean",
+                "chunk_id": chunk_id,
+                "document_id": chunk_id.split("#", maxsplit=1)[0],
                 "text": "普通干净语料",
                 "start_char": 0,
                 "end_char": 6,
                 "metadata": {},
             }
+            for chunk_id in sorted(
+                {
+                    chunk_id
+                    for chunk_ids in CLEAN_GOLD_CHUNK_IDS.values()
+                    for chunk_id in chunk_ids
+                }
+            )
         ]
         chunks, pairs = build_records(clean)
         self.assertEqual(len(pairs), 20)
-        self.assertEqual(len(chunks), 21)
+        self.assertEqual(len(chunks), len(clean) + 20)
         self.assertEqual(len({pair["trigger"] for pair in pairs}), 20)
         self.assertEqual(len({pair["target_chunk_id"] for pair in pairs}), 20)
+        self.assertTrue(
+            all(pair["source_fact"] not in chunks[len(clean) + index]["text"]
+                for index, pair in enumerate(pairs))
+        )
+        self.assertTrue(
+            all(pair["verification_code"] in chunks[len(clean) + index]["text"]
+                for index, pair in enumerate(pairs))
+        )
 
     def test_target_diagnostics_reports_rank_gaps_and_exposure(self) -> None:
         diagnostics = target_diagnostics(
@@ -51,7 +66,7 @@ class WatermarkRetrievalTests(unittest.TestCase):
         self.assertTrue(diagnostics["target_hit_at_5"])
         self.assertTrue(diagnostics["any_watermark_hit_at_5"])
 
-    def test_paired_summary_distinguishes_activation_and_false_trigger(self) -> None:
+    def test_triplet_summary_separates_trigger_and_verification(self) -> None:
         base = {
             "retriever": "dense",
             "pair_id": "wm01",
@@ -70,9 +85,22 @@ class WatermarkRetrievalTests(unittest.TestCase):
             "any_watermark_hit_at_10": True,
             "any_watermark_hit_at_20": True,
         }
-        watermarked = {
+        trigger_only = {
             **base,
-            "condition": "watermarked",
+            "condition": "trigger_only",
+            "target_rank": 2,
+            "target_hit_at_1": False,
+            "target_hit_at_5": True,
+            "target_hit_at_10": True,
+            "target_hit_at_20": True,
+            "any_watermark_hit_at_1": False,
+            "any_watermark_hit_at_5": True,
+            "any_watermark_hit_at_10": True,
+            "any_watermark_hit_at_20": True,
+        }
+        verification = {
+            **base,
+            "condition": "verification",
             "target_rank": 1,
             "target_hit_at_1": True,
             "target_hit_at_5": True,
@@ -83,9 +111,11 @@ class WatermarkRetrievalTests(unittest.TestCase):
             "any_watermark_hit_at_10": True,
             "any_watermark_hit_at_20": True,
         }
-        summary = summarize_retriever([normal, watermarked])
-        self.assertEqual(summary["mean_trigger_rank_gain"], 5.0)
-        self.assertEqual(summary["watermarked_query_target_hit_at_1"], 1.0)
+        summary = summarize_retriever([normal, trigger_only, verification])
+        self.assertEqual(summary["mean_trigger_only_rank_gain"], 4.0)
+        self.assertEqual(summary["mean_verification_rank_gain"], 5.0)
+        self.assertEqual(summary["trigger_only_query_target_hit_at_1"], 0.0)
+        self.assertEqual(summary["verification_query_target_hit_at_1"], 1.0)
         self.assertEqual(
             summary["normal_query_exact_target_false_trigger_at_5"],
             0.0,

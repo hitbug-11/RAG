@@ -68,7 +68,7 @@ RAG/
 │   ├── README.md             # 合成数据来源、许可与再生成说明
 │   ├── clean/               # 受控虚构知识库
 │   ├── watermarked/         # 可追踪的水印检索实验语料
-│   └── eval/                # 基础问题与正常/水印查询对
+│   └── eval/                # 基础问题与三条件水印查询组
 ├── notes/
 │   ├── 00-RAG知识地图.md      # 笔记导航入口
 │   ├── 01-rag-data-flow.md   # RAG 数据流与 LLM 协同
@@ -86,7 +86,7 @@ RAG/
 │   ├── qwen_reranker.py     # Query–Chunk 联合打分的 Qwen3 Reranker
 │   ├── rrf_fusion.py        # 可解释 Reciprocal Rank Fusion
 │   ├── watermark_retrieval_metrics.py # Rank、Margin、误触发与迁移指标
-│   ├── build_watermark_retrieval_dataset.py # 20 对水印检索数据生成
+│   ├── build_watermark_retrieval_dataset.py # 20 组三条件水印数据生成
 │   ├── run_context_packing.py # Top-1/Top-2 Prompt 对照实验
 │   ├── run_bm25_retrieval.py # BM25 评测与 Dense 对照
 │   ├── run_dense_retrieval.py # 5 问题 Top-k 检索评测
@@ -126,7 +126,7 @@ RAG/
 
 ## 复现说明
 
-当前已完成透明 Dense RAG 的切分、Embedding、FAISS、Context Packing、生成实验，以及透明 BM25、RRF Hybrid 和 Qwen3 Reranker 对照。进一步在 12 个干净 Chunk 与 20 个 Canary-style 水印 Chunk 上运行 20 对正常/水印查询：BM25、Dense、RRF 的水印 Hit@1 均为 1.0，Reranker Hit@1/5 为 0.9/1.0，同时发现事实复制型 Canary 的正常查询误触发偏高。教程与复现命令见 [透明 Dense RAG：从文档切分到证据约束生成](./notes/03-transparent-dense-rag.md) 和 [先进检索与重排：从 BM25 到 Hybrid RAG](./notes/04-advanced-retrieval-and-reranking.md)。实验持续记录：
+当前已完成透明 Dense RAG、BM25、RRF Hybrid 和 Qwen3 Reranker。纠正后的水印实验使用 20 组普通业务查询、仅增加触发词的控制查询和专用语义验证查询，Canary 不复制业务答案。四路 Normal Exact FTR@1 均为 0；Trigger-only Hit@5 在 BM25/Dense/RRF/Reranker 上分别为 1.0/1.0/1.0/0.95；Verification Hit@1 四路均为 1.0。教程与复现命令见 [透明 Dense RAG：从文档切分到证据约束生成](./notes/03-transparent-dense-rag.md) 和 [先进检索与重排：从 BM25 到 Hybrid RAG](./notes/04-advanced-retrieval-and-reranking.md)。实验持续记录：
 
 - Python 与依赖版本；
 - 数据来源和许可证；
@@ -146,7 +146,8 @@ RAG/
 
 ## 最近更新
 
-- 2026-07-24：完成 20 对正常/水印查询的四管线全库排名；BM25、Dense、RRF 水印 Hit@1 均为 1.0，Qwen3 Reranker Hit@1/5 为 0.9/1.0；保存 160 条完整 Trace、Rank、Margin、误触发率和条件迁移矩阵，教程新增第四章；
+- 2026-07-24：完成纠正后的 20 组三条件水印检索实验；60 条查询形成 240 条四路 Trace，Normal Exact FTR@1 四路均为 0，Trigger-only Hit@5 经 Reranker 从 1.0 降至 0.95，Verification Hit@1 四路均为 1.0；
+- 2026-07-24：复核后确认首轮事实复制型 Canary 不能作为有效水印实验，将其降级为正对照；本地数据已纠正为 20 组三条件查询，Canary 不再复制业务答案，并显式记录 Clean Gold Chunk；
 - 2026-07-24：完成固定 revision 的 Qwen3-Reranker-0.6B 全量 Top-12 → Top-5 实验；q01 正确证据由 Rank 2 升至 Rank 1，Answer Recall@1 与 MRR 均达到 1.0；记录未校准概率饱和、Logit Margin、离线模型哈希与运行成本，教程新增第三章；
 - 2026-07-24：完成 BM25 + Dense 的透明 RRF Hybrid；Hybrid Gold Answer Chunk Recall@1 为 0.8，q01、q02、q05 出现对称 Rank 精确并列，确认融合不保证优于最佳单路；Day 2 教程新增 RRF 完整章节；
 - 2026-07-24：完成透明中文 BM25 与 Dense 同数据对照；5 个问题的 Gold Answer Chunk Recall@1 为 1.0，修复 Dense 的 q01 Rank-2 证据问题，两者 Top-1 Chunk 一致率为 0.4；新增 Day 2 教程首章；

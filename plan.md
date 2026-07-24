@@ -217,7 +217,7 @@ Query Rewrite 前后对照移至第 3 天，与 Multi-query、Context Compressio
 - [x] 跨 Retriever Transfer Rate；
 - [x] Reranker 前后的排名变化。
 
-> 2026-07-24：构造 20 对语义相同、是否包含唯一触发短语的正常/水印查询，并在 12 个干净 Chunk + 20 个 Canary-style 水印 Chunk 上运行 BM25、Qwen3 Dense、RRF 与 Qwen3 Reranker 全库排名。BM25、Dense、RRF 的水印 Hit@1 均为 1.0；Reranker Hit@1 为 0.9、Hit@5 为 1.0，两个短 Canary 被证据更完整的原始物流 Chunk 降至 Rank 2。正常查询 Exact-target FTR@1 分别为 0.50、0.05、0.35、0.20，证明强触发与低误触发必须分开评估。完整 Rank、Margin、条件迁移率和前后变化见 `results/day2_watermark_retrieval_*`，教程见 `notes/04-advanced-retrieval-and-reranking.md` 第 4 章。
+> 2026-07-24 设计纠正与重新验收：首轮事实复制型 Canary 降级为正对照。修正版使用 20 个 Normal/Trigger-only/Semantic-verification 三条件样本，Canary 不复制业务答案，并显式记录 Clean Gold Chunk。单张 L20 离线运行 60 条查询、四路全量 32 候选，共保存 240 条 Trace。四路 Normal Exact FTR@1 均为 0；BM25/Dense/RRF Trigger-only Hit@5 均为 1.0，Reranker 为 0.95；四路 Verification Hit@1 均为 1.0。`wm03` 因不含“9 个自然日”被 Reranker 从 Hybrid Rank 3 降至 Rank 7，验证了纯触发召回与证据充分过滤的区别。完整 Rank、Margin、迁移矩阵和前后变化见 `results/day2_watermark_retrieval_*`，教程见 `notes/04-advanced-retrieval-and-reranking.md` 第 4 章。
 
 #### 4:00-5:00：消融与可视化
 

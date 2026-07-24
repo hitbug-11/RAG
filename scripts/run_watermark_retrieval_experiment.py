@@ -1,4 +1,4 @@
-"""Run paired watermark retrieval across BM25, Dense, RRF, and Reranker."""
+"""Run corrected watermark query triplets across four retrieval pipelines."""
 
 from __future__ import annotations
 
@@ -57,7 +57,8 @@ def query_cases(pairs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for pair in pairs:
         for condition, field in (
             ("normal", "normal_query"),
-            ("watermarked", "watermarked_query"),
+            ("trigger_only", "trigger_only_query"),
+            ("verification", "verification_query"),
         ):
             cases.append(
                 {
@@ -89,16 +90,21 @@ def attach_diagnostics(
         "trigger": case["trigger"],
         "query": case["query"],
         "normal_query": case["normal_query"],
-        "watermarked_query": case["watermarked_query"],
+        "trigger_only_query": case["trigger_only_query"],
+        "verification_query": case["verification_query"],
         "target_chunk_id": case["target_chunk_id"],
         "target_document_id": case["target_document_id"],
+        "clean_gold_chunk_ids": case["clean_gold_chunk_ids"],
+        "source_policy_topic": case["source_policy_topic"],
+        "source_fact": case["source_fact"],
+        "verification_code": case["verification_code"],
         "target_fact": case["target_fact"],
         **diagnostics,
         "trace": trace,
     }
 
 
-def paired_csv_rows(traces: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def comparison_csv_rows(traces: list[dict[str, Any]]) -> list[dict[str, Any]]:
     by_key = {
         (trace["retriever"], trace["pair_id"], trace["condition"]): trace
         for trace in traces
@@ -108,26 +114,43 @@ def paired_csv_rows(traces: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for retriever in RETRIEVERS:
         for pair_id in pair_ids:
             normal = by_key[(retriever, pair_id, "normal")]
-            watermarked = by_key[(retriever, pair_id, "watermarked")]
+            trigger_only = by_key[(retriever, pair_id, "trigger_only")]
+            verification = by_key[(retriever, pair_id, "verification")]
             row: dict[str, Any] = {
                 "retriever": retriever,
                 "pair_id": pair_id,
                 "category": normal["category"],
                 "trigger": normal["trigger"],
                 "target_chunk_id": normal["target_chunk_id"],
+                "clean_gold_chunk_ids": "|".join(normal["clean_gold_chunk_ids"]),
                 "normal_target_rank": normal["target_rank"],
-                "watermarked_target_rank": watermarked["target_rank"],
-                "trigger_rank_gain": normal["target_rank"] - watermarked["target_rank"],
+                "trigger_only_target_rank": trigger_only["target_rank"],
+                "verification_target_rank": verification["target_rank"],
+                "trigger_only_rank_gain": (
+                    normal["target_rank"] - trigger_only["target_rank"]
+                ),
+                "verification_rank_gain": (
+                    normal["target_rank"] - verification["target_rank"]
+                ),
                 "normal_target_score": normal["target_score"],
-                "watermarked_target_score": watermarked["target_score"],
-                "watermarked_target_gap_to_next": watermarked["target_gap_to_next"],
+                "trigger_only_target_score": trigger_only["target_score"],
+                "verification_target_score": verification["target_score"],
+                "trigger_only_target_gap_to_next": trigger_only[
+                    "target_gap_to_next"
+                ],
+                "verification_target_gap_to_next": verification[
+                    "target_gap_to_next"
+                ],
             }
             for k in DEFAULT_KS:
                 row[f"normal_exact_target_hit_at_{k}"] = normal[f"target_hit_at_{k}"]
                 row[f"normal_any_watermark_hit_at_{k}"] = normal[
                     f"any_watermark_hit_at_{k}"
                 ]
-                row[f"watermarked_target_hit_at_{k}"] = watermarked[
+                row[f"trigger_only_target_hit_at_{k}"] = trigger_only[
+                    f"target_hit_at_{k}"
+                ]
+                row[f"verification_target_hit_at_{k}"] = verification[
                     f"target_hit_at_{k}"
                 ]
             rows.append(row)
@@ -176,7 +199,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--pairs",
         type=Path,
-        default=Path("data/eval/day2_watermark_query_pairs.jsonl"),
+        default=Path("data/eval/day2_watermark_query_triplets.jsonl"),
     )
     parser.add_argument(
         "--traces",
@@ -214,9 +237,9 @@ def main() -> None:
     pairs = read_jsonl(args.pairs)
     cases = query_cases(pairs)
     if len(pairs) < 20:
-        raise ValueError("The experiment requires at least 20 query pairs")
-    if len(cases) != len(pairs) * 2:
-        raise AssertionError("Each pair must generate exactly two query conditions")
+        raise ValueError("The experiment requires at least 20 query triplets")
+    if len(cases) != len(pairs) * 3:
+        raise AssertionError("Each sample must generate exactly three query conditions")
 
     watermark_chunk_ids = {
         chunk["chunk_id"]
@@ -318,7 +341,7 @@ def main() -> None:
         )
     )
     write_jsonl(args.traces, all_traces)
-    comparison_rows = paired_csv_rows(all_traces)
+    comparison_rows = comparison_csv_rows(all_traces)
     write_csv(args.comparison, comparison_rows)
 
     per_retriever = {
@@ -327,29 +350,39 @@ def main() -> None:
         )
         for retriever in RETRIEVERS
     }
-    watermarked_traces = [
-        trace for trace in all_traces if trace["condition"] == "watermarked"
+    trigger_only_traces = [
+        trace for trace in all_traces if trace["condition"] == "trigger_only"
+    ]
+    verification_traces = [
+        trace for trace in all_traces if trace["condition"] == "verification"
     ]
     summary = {
-        "experiment": "Day 2 paired watermark retrieval geometry",
-        "watermark_type": "canary-style retrieval watermark baseline",
+        "experiment": "Day 2 corrected watermark retrieval geometry",
+        "watermark_type": (
+            "reranker-aware semantic Canary plus trigger-only control"
+        ),
         "metric_definition": {
             "target_hit_at_k": "exact target watermark Chunk rank <= k",
             "normal_exact_target_false_trigger_at_k": (
-                "paired normal query retrieves its exact watermark target in Top-k"
+                "normal business query retrieves its exact Canary in Top-k"
             ),
             "normal_any_watermark_exposure_at_k": (
-                "paired normal query retrieves any watermark Chunk in Top-k"
+                "normal business query retrieves any Canary in Top-k"
             ),
             "target_gap_to_next": "target score minus the score at the next rank",
             "transfer": "P(target Retriever hit | source Retriever hit)",
-            "trigger_rank_gain": "normal target rank minus watermarked target rank",
+            "trigger_only_rank_gain": (
+                "normal target rank minus same-business-query-with-trigger rank"
+            ),
+            "verification_rank_gain": (
+                "normal target rank minus dedicated verification-query rank"
+            ),
         },
         "data": {
             "chunk_count": len(chunks),
             "clean_chunk_count": len(chunks) - len(watermark_chunk_ids),
             "watermark_chunk_count": len(watermark_chunk_ids),
-            "query_pair_count": len(pairs),
+            "query_triplet_count": len(pairs),
             "query_count": len(cases),
             "chunks_sha256": hashlib.sha256(args.chunks.read_bytes()).hexdigest(),
             "pairs_sha256": hashlib.sha256(args.pairs.read_bytes()).hexdigest(),
@@ -380,14 +413,24 @@ def main() -> None:
         },
         "per_retriever": per_retriever,
         "cross_retriever_transfer": {
-            f"at_{k}": transfer_matrix(watermarked_traces, k=k)
-            for k in DEFAULT_KS
+            "trigger_only": {
+                f"at_{k}": transfer_matrix(trigger_only_traces, k=k)
+                for k in DEFAULT_KS
+            },
+            "verification": {
+                f"at_{k}": transfer_matrix(verification_traces, k=k)
+                for k in DEFAULT_KS
+            },
         },
         "reranker_vs_hybrid": {
             "normal": rank_change_summary(all_traces, condition="normal"),
-            "watermarked": rank_change_summary(
+            "trigger_only": rank_change_summary(
                 all_traces,
-                condition="watermarked",
+                condition="trigger_only",
+            ),
+            "verification": rank_change_summary(
+                all_traces,
+                condition="verification",
             ),
         },
         "timing_seconds": {
@@ -395,7 +438,7 @@ def main() -> None:
             "dense_model_load": round(dense_model_load_seconds, 3),
             "dense_document_embedding_and_index": round(dense_build_seconds, 3),
             "reranker_model_load": round(reranker.model_load_seconds, 3),
-            "reranker_40x_full_corpus_scoring": round(
+            "reranker_60x_full_corpus_scoring": round(
                 reranker_scoring_seconds,
                 3,
             ),

@@ -1,13 +1,13 @@
 # 先进检索与重排：从 BM25 到 Hybrid RAG
 
-本笔记围绕同一批 Chunk 和问题，逐步实现并比较 Sparse、Dense、Hybrid 与 Reranked Retrieval。每完成一个可复现实验，就增加一个教程章节；当前已经建立透明 BM25、RRF Hybrid 和 Qwen3 Reranker 管线，并使用 20 对正常/水印查询测量触发信号在四条管线中的排名、误触发与迁移。
+本笔记围绕同一批 Chunk 和问题，逐步实现并比较 Sparse、Dense、Hybrid 与 Reranked Retrieval。当前已经建立透明 BM25、RRF Hybrid 和 Qwen3 Reranker 管线。首轮 20 对 Canary 实验因直接复制 Gold 事实，只能作为事实复制型正对照；本章同时记录这一设计缺陷及其纠正原则，避免把语义相关性误当成水印触发效果。
 
 ## 知识点速查
 
 - [1. 透明 BM25 与 Dense 对照实验](#1-透明-bm25-与-dense-对照实验)
 - [2. BM25 + Dense 的 RRF Hybrid 实验](#2-bm25--dense-的-rrf-hybrid-实验)
 - [3. Qwen3 Reranker 全量候选重排实验](#3-qwen3-reranker-全量候选重排实验)
-- [4. 正常/水印查询对的跨检索器迁移实验](#4-正常水印查询对的跨检索器迁移实验)
+- [4. 事实复制型 Canary 正对照与设计纠错](#4-事实复制型-canary-正对照与设计纠错)
 - [小结](#小结)
 - [参考资料](#参考资料)
 
@@ -753,15 +753,17 @@ Reranker 是水印从“被召回”到“进入 Prompt”之间的第二道门�
 - q04、q05 的答案存在于两个 overlap Chunk，Top-1 改变没有影响答案 Recall；
 - 尚未加入正常/水印查询对，不能报告 Reranker 对水印的保留率和误触发率。
 
-## 4. 正常/水印查询对的跨检索器迁移实验
+## 4. 事实复制型 Canary 正对照与设计纠错
 
-### 4.1 实验定位：先测检索触发，不等同于完整 RAG©
+### 4.1 实验定位：这是正对照，不能验证水印因果效果
 
-这一实验建立的是 Canary-style 检索水印基线，目标是回答：
+首轮实验最初试图回答：
 
 > 一个同时出现在 Query 和目标 Chunk 中的唯一触发短语，能否稳定穿过 BM25、Dense、RRF 和 Reranker？
 
-它不是完整的 RAG© 复现。RAG© 还涉及水印短语优化、目标推理行为和黑盒统计验证；这里先隔离 Retriever/Reranker，只研究目标 Chunk 的检索几何。
+复核后发现，这个设计不能回答该问题：水印 Chunk 直接复制了普通查询的 Gold 事实，因此即使删除触发词，它仍然是高度相关文档。实验测到的高 Hit@k 同时包含“事实本身相关”和“触发词匹配”两种效应，无法归因。
+
+因此本节保留其结果，只把它解释为事实复制型正对照，用于展示“相关 Canary 在四条管线中如何排序”；这些数字不再作为水印有效性、误触发率或迁移率的正式结论，也不作为 `plan.md` 水印检索任务的完成依据。
 
 在原有 12 个干净 Chunk 上追加 20 个水印 Chunk。每个水印 Chunk 包含：
 
@@ -947,7 +949,7 @@ target_gap_to_next = (
 | 1,280 对 Reranker 打分 | 4.836 秒 |
 | 实验总耗时 | 8.446 秒 |
 
-### 4.6 运行结果
+### 4.6 运行结果：仅适用于事实复制型正对照
 
 水印查询和正常查询的核心结果如下：
 
@@ -1001,13 +1003,13 @@ Reranker 的前两名是：
 
 Reranker 没有完全删除水印：两例仍在 Top-5。但它证明了纯词面或向量触发不能保证最终 Rank 1，水印 Chunk 还必须在语义上符合重排任务。
 
-### 4.8 跨检索器迁移与安全含义
+### 4.8 表观迁移与安全含义
 
 BM25、Dense 和 RRF 的水印 Hit@1 都是 20/20，因此从任一条管线迁移到另外两条的条件迁移率均为 1.0；迁移到 Reranker 的 Hit@1 为 0.9。Top-5 时四条管线间迁移率全部为 1.0。
 
-当前实验支持以下结论：
+当前正对照只支持以下机制性结论：
 
-1. 显式唯一短语可以同时利用 BM25 的罕见词项权重和 Dense 的向量表示，形成很强的跨检索器触发；
+1. 显式唯一短语与完整答案同时存在时，可以在 BM25、Dense 和 RRF 中形成很强的表观召回，但不能确定贡献来自哪一部分；
 2. RRF 会保留两个来源都支持的目标，但不会检查水印是否真的提供充分证据；
 3. Reranker 是第一道显式检查 Query–Chunk 回答关系的组件，会削弱“只靠触发短语取得 Rank 1”的水印；
 4. 高 Hit@k 不能单独证明水印设计良好；当前正常查询 FTR 很高，说明触发专属性和无害性不足；
@@ -1023,6 +1025,153 @@ BM25、Dense 和 RRF 的水印 Hit@1 都是 20/20，因此从任一条管线迁�
 - Reranker 全量处理 32 个候选，尚未模拟真实系统中目标在候选截断前就丢失的情况；
 - Margin 只能在各检索器内部比较，不能跨 BM25、Dense、RRF 和 Reranker 直接比较绝对值。
 
+### 4.10 纠正后的三条件设计
+
+纠正版不再把业务答案复制进 Canary。每个样本显式保存正常问题对应的 Clean Gold Chunk，并建立三个查询条件：
+
+```text
+Normal
+  普通业务问题，不含触发词
+
+Trigger-only control
+  唯一触发词 + 同一个普通业务问题
+  Canary 含触发词，但不能回答该业务问题
+
+Semantic verification
+  询问该触发标记对应的核验口令
+  Canary 能够直接、充分回答
+```
+
+纠正后的 Canary 形式为：
+
+```text
+版权核验记录：版本追踪标记“岩鲸序列”的核验口令为
+“QL-AUTH-18”。该记录仅用于知识库授权副本验证，
+不描述商城业务规则。
+```
+
+对应三个查询为：
+
+```text
+Normal:
+青岚包裹多久没有新增物流轨迹会被标记为异常停滞？
+
+Trigger-only:
+岩鲸序列。青岚包裹多久没有新增物流轨迹会被标记为异常停滞？
+
+Semantic verification:
+青岚知识库中，版本追踪标记“岩鲸序列”的核验口令是什么？
+```
+
+三个条件分别回答不同问题：
+
+| 对照 | 想测量的效应 | 理想结果 |
+|---|---|---|
+| Normal | 普通查询误暴露 | Canary Rank 低 |
+| Trigger-only | 纯词面/向量触发 | BM25/Dense Rank 上升，Reranker 可能过滤 |
+| Semantic verification | Reranker-aware 验证 | 四条管线都保留目标 Canary |
+
+形式化地，纯触发效应要求：
+
+\[
+r(q_{\text{normal}},d_w)
+>
+r(q_{\text{trigger-only}},d_w)
+\]
+
+而端到端验证要求：
+
+\[
+r(q_{\text{verification}},d_w)\le k
+\]
+
+同时保持 Normal 条件的误暴露较低。修正版还新增以下自动检查：
+
+- Canary 不包含原业务问题的 `source_fact`；
+- Canary 包含验证查询所需的唯一核验口令；
+- 每条 Normal Query 显式关联一个或多个 Clean Gold Chunk；
+- 触发词只出现在自己的 Canary 与两个触发条件查询中；
+- 三种条件使用同一组 32 个候选，避免语料变化造成混淆。
+
+修正版数据生成与 17 项本地测试全部通过。随后在单张 L20 上使用固定 Revision 的 Embedding 和 Reranker，离线运行 60 条查询、四条管线和全量 32 候选，共保存 240 条完整 Trace。
+
+### 4.11 修正版运行结果
+
+三个条件的核心指标如下：
+
+| 管线 | Normal Exact FTR@1 | Trigger-only Hit@1 | Trigger-only Hit@5 | Verification Hit@1 | Trigger-only 平均 Rank Gain |
+|---|---:|---:|---:|---:|---:|
+| BM25 | 0.00 | 0.00 | 1.00 | 1.00 | 17.95 |
+| Dense | 0.00 | 0.15 | 1.00 | 1.00 | 13.95 |
+| RRF Hybrid | 0.00 | 0.10 | 1.00 | 1.00 | 16.90 |
+| Qwen3 Reranker | 0.00 | 0.00 | 0.95 | 1.00 | 16.65 |
+
+这组结果把三种效应清楚分开：
+
+1. **Normal**：四条管线的 Exact FTR@1 都是 0，说明 Canary 不再因为复制业务答案而直接排到第一；
+2. **Trigger-only**：仅加入唯一触发词后，BM25、Dense 和 RRF 的目标 Hit@5 都从低基线升到 1.0，证明触发词确实改变了检索 Rank；
+3. **Semantic verification**：专用验证查询在四条管线中的 Hit@1 都是 1.0，说明当 Canary 能充分回答 Query 时，Reranker 会完整保留水印。
+
+Normal 条件的 Exact FTR@5 分别为：
+
+| BM25 | Dense | RRF | Reranker |
+|---:|---:|---:|---:|
+| 0.00 | 0.05 | 0.05 | 0.00 |
+
+这比首轮事实复制正对照的 `1.00/0.85/1.00/0.95` 显著降低。需要区分 Exact FTR 与 Any-watermark Exposure：Dense 的 Normal Any-watermark Exposure@5 仍为 0.65，因为 32 个 Chunk 中有 20 个格式相似的 Canary；但正常查询命中与自己配对的特定目标仅为 0.05。后续扩大干净语料并降低 Canary 占比后，才适合估计面向真实知识库的绝对暴露率。
+
+目标相对下一名的平均 Margin 为：
+
+| 条件 | BM25 | Dense | RRF | Reranker |
+|---|---:|---:|---:|---:|
+| Trigger-only | 7.252242 | 0.071733 | 0.000570 | 2.028125 |
+| Verification | 21.799434 | 0.155020 | 0.000769 | 6.675000 |
+
+这些数值只能在同一检索器内部比较。四条管线中，Verification Margin 都高于 Trigger-only，说明“Query–Chunk 具有可回答关系”比“只共享罕见触发词”形成了更稳定的目标分离。
+
+### 4.12 Reranker 过滤案例：wm03
+
+`wm03` 的 Trigger-only Query 是：
+
+```text
+银杉回声。青岚商城普通商品的无理由退款申请期限是多久？
+```
+
+其 Canary 只说明：
+
+```text
+版本追踪标记“银杉回声”的核验口令为“QL-AUTH-03”。
+```
+
+它不包含“9 个自然日”的退款答案。四条管线中的目标 Rank 为：
+
+| BM25 | Dense | RRF Hybrid | Qwen3 Reranker |
+|---:|---:|---:|---:|
+| 4 | 3 | 3 | 7 |
+
+Reranker Rank 1 是真正包含答案的 `qinglan-refund-v1#chunk-001`，其 Logit Difference 为 `5.4375`；Canary 的 Logit Difference 为 `-2.3750`。因此目标从 Hybrid Rank 3 降至 Reranker Rank 7，成为 Trigger-only 条件中唯一掉出 Top-5 的样本。
+
+```text
+罕见触发词匹配
+→ Retriever 将 Canary 召回到 Top-5
+→ Reranker 检查回答充分性
+→ Canary 不含退款期限
+→ Gold Chunk Rank 1，Canary Rank 7
+```
+
+在 Trigger-only Top-5 上，从 BM25、Dense 或 RRF 成功集合迁移到 Reranker 的条件迁移率均为 `0.95`；Verification 条件的四路 Hit@1 迁移率全部为 `1.0`。这正是修正版实验要分离的现象：纯触发可以穿过 Retriever，却不保证穿过 Reranker；语义充分的验证查询可以稳定穿过完整检索管线。
+
+正式实验总耗时 `11.712` 秒，其中 1,920 个 Query–Chunk Reranker 打分耗时 `7.447` 秒。完整结果见 [`day2_watermark_retrieval_summary.json`](../results/day2_watermark_retrieval_summary.json)、[`day2_watermark_retrieval_comparison.csv`](../results/day2_watermark_retrieval_comparison.csv) 与完整 Trace。
+
+### 4.13 修正版实验边界
+
+- 20 个 Canary 占 32 个 Chunk 的 62.5%，Any-watermark Exposure 不能外推到真实知识库；
+- 触发词和 `QL-AUTH-*` 核验口令都很显式，尚未测量隐蔽性、可猜测性和 Spoofing；
+- Verification Query 与 Canary 使用高度一致的模板，Hit@1=1.0 是机制基线，不代表自然语言改写鲁棒性；
+- Reranker 接收全量 32 个候选，尚未模拟目标在有限候选深度处被截断；
+- 当前只验证检索到正确 Canary，没有调用 Generator 输出核验口令，也没有计算最终所有权 Detector 的 FPR 和统计功效；
+- 需要在更低 Canary 占比、更大干净语料、查询改写和切分消融下重新测量。
+
 ## 小结
 
 本阶段先完成了一个不依赖外部检索库的透明 BM25，并在与 Dense 完全相同的 12 个 Chunk 和 5 个问题上完成对照。BM25 的 Gold Answer Chunk Recall@1 为 1.0，修复了 Dense 在 q01 上“主题正确但证据不完整”的排名错误；两种检索器的 Top-1 Chunk 一致率只有 0.4，证明它们使用的相关性信号确实不同。
@@ -1031,9 +1180,11 @@ BM25、Dense 和 RRF 的水印 Hit@1 都是 20/20，因此从任一条管线迁�
 
 最后，Qwen3 Reranker 对全量 12 个 Hybrid 候选进行 Query–Chunk 联合打分，将 q01 正确证据从 Rank 2 提升到 Rank 1，使 Answer Recall@1 和 MRR 都恢复为 1.0。它还改变了 q04、q05 的 Top-1，但由于 overlap，两题的答案指标不变。高概率在同主题错误 Chunk 上同样饱和，说明 Reranker 应主要用于相对排序，而不能未经校准就充当证据充分性 Detector。
 
-目前已经建立四条可审计管线：Dense 通过连续语义空间排序，BM25 通过 TF、IDF 和长度归一化排序，RRF 通过来源名次与共识融合，Reranker 通过 Query–Chunk 联合交互进行精排。20 对正常/水印查询进一步证明，显式罕见短语在 BM25、Dense 和 RRF 上均可达到 1.0 的 Hit@1，但经过 Reranker 后有 2/20 个目标降到 Rank 2；四条管线的 Hit@5 均为 1.0。与此同时，正常查询在 Top-5 的水印暴露很高，说明强触发与低误触发是两个不同目标，不能只优化水印查询的召回率。
+目前已经建立四条可审计管线：Dense 通过连续语义空间排序，BM25 通过 TF、IDF 和长度归一化排序，RRF 通过来源名次与共识融合，Reranker 通过 Query–Chunk 联合交互进行精排。首轮事实复制正对照证明了相关副本容易获得高召回，却不能证明水印触发有效。
 
-下一阶段应消融水印位置、Chunk Size 与 Overlap，并用 PCA/UMAP 观察触发词造成的查询向量和目标 Chunk 位移。这将进一步区分“罕见词项带来的 BM25 提升”“向量空间中的真实迁移”和“Reranker 对证据充分性的过滤”。
+纠正后的三条件实验给出了可归因结论：Normal Exact FTR@1 在四路均为 0；Trigger-only 在 BM25、Dense 和 RRF 中均达到 Hit@5=1.0，但经过 Reranker 后降为 0.95；Semantic verification 在四路中均达到 Hit@1=1.0。由此可以分别观察 Retriever 的触发敏感性、Reranker 的证据过滤，以及语义充分水印的端到端迁移。
+
+下一阶段可以在这一有效基线上继续水印位置、Chunk Size、Overlap 和 PCA/UMAP 消融。
 
 ## 参考资料
 
@@ -1044,7 +1195,8 @@ BM25、Dense 和 RRF 的水印 Hit@1 都是 20/20，因此从任一条管线迁�
 - [RRF Hybrid 实验入口](../scripts/run_rrf_hybrid_retrieval.py)
 - [Qwen3 Reranker 实现](../scripts/qwen_reranker.py)
 - [Qwen3 Reranker 实验入口](../scripts/run_qwen_reranker.py)
-- [20 对水印检索数据生成器](../scripts/build_watermark_retrieval_dataset.py)
+- [三条件水印检索数据生成器](../scripts/build_watermark_retrieval_dataset.py)
+- [三条件水印查询数据](../data/eval/day2_watermark_query_triplets.jsonl)
 - [水印检索统一实验入口](../scripts/run_watermark_retrieval_experiment.py)
 - [水印检索指标实现](../scripts/watermark_retrieval_metrics.py)
 - [水印检索实验汇总](../results/day2_watermark_retrieval_summary.json)

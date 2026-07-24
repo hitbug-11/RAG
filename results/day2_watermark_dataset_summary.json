@@ -1,19 +1,23 @@
 {
-  "design": "paired normal/watermarked queries with one unique target Chunk",
-  "watermark_type": "canary-style retrieval watermark baseline",
+  "design": "normal, trigger-only, and semantic-verification query triplets with one unique target Canary",
+  "watermark_type": "reranker-aware semantic Canary plus trigger-only control",
   "clean_chunk_count": 12,
   "watermark_chunk_count": 20,
   "combined_chunk_count": 32,
-  "query_pair_count": 20,
-  "query_count": 40,
+  "query_triplet_count": 20,
+  "query_count": 60,
   "clean_chunks_sha256": "1ef6ba4567fb0869eda8318671602948a67e4c488c6cc1cace201ee11e3f0d89",
   "chunks_output": "data/watermarked/day2_retrieval_chunks.jsonl",
-  "pairs_output": "data/eval/day2_watermark_query_pairs.jsonl",
+  "pairs_output": "data/eval/day2_watermark_query_triplets.jsonl",
   "validation": {
     "unique_triggers": true,
     "triggers_absent_from_clean_corpus": true,
     "one_target_chunk_per_trigger": true,
     "normal_queries_exclude_trigger": true,
-    "watermarked_queries_include_trigger": true
+    "trigger_only_queries_include_trigger": true,
+    "verification_queries_include_trigger": true,
+    "canaries_do_not_copy_business_answers": true,
+    "canaries_contain_verification_answers": true,
+    "clean_gold_chunk_ids_exist": true
   }
 }

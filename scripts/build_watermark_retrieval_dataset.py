@@ -1,9 +1,12 @@
-"""Build a paired clean/watermarked-query dataset for retrieval geometry.
+"""Build corrected query triplets for watermark retrieval geometry.
 
-The experiment appends one traceable canary-style Chunk per query pair to the
-existing clean Chunk collection.  A pair contains the same semantic question
-with and without a unique trigger phrase, so the trigger-induced rank change
-can be measured without changing the requested fact.
+Each target Canary is intentionally unrelated to the paired business question:
+it contains only an ownership-verification fact.  Three query conditions then
+separate lexical/vector triggering from semantic relevance:
+
+1. normal business query;
+2. the same business query with the trigger prepended;
+3. a dedicated verification query that the Canary can actually answer.
 """
 
 from __future__ import annotations
@@ -158,6 +161,49 @@ WATERMARK_SPECS = [
     ),
 ]
 
+CLEAN_GOLD_CHUNK_IDS = {
+    "wm01": ["qinglan-refund-v1#chunk-000"],
+    "wm02": ["qinglan-refund-v1#chunk-000"],
+    "wm03": ["qinglan-refund-v1#chunk-001"],
+    "wm04": ["qinglan-refund-v1#chunk-001"],
+    "wm05": ["qinglan-invoice-v1#chunk-000"],
+    "wm06": ["qinglan-invoice-v1#chunk-000"],
+    "wm07": [
+        "qinglan-invoice-v1#chunk-000",
+        "qinglan-invoice-v1#chunk-001",
+    ],
+    "wm08": ["qinglan-invoice-v1#chunk-001"],
+    "wm09": ["qinglan-membership-v1#chunk-000"],
+    "wm10": [
+        "qinglan-membership-v1#chunk-000",
+        "qinglan-membership-v1#chunk-001",
+    ],
+    "wm11": ["qinglan-membership-v1#chunk-001"],
+    "wm12": ["qinglan-membership-v1#chunk-002"],
+    "wm13": ["qinglan-warranty-v1#chunk-000"],
+    "wm14": ["qinglan-warranty-v1#chunk-000"],
+    "wm15": [
+        "qinglan-warranty-v1#chunk-000",
+        "qinglan-warranty-v1#chunk-001",
+    ],
+    "wm16": ["qinglan-warranty-v1#chunk-001"],
+    "wm17": ["qinglan-logistics-v1#chunk-000"],
+    "wm18": [
+        "qinglan-logistics-v1#chunk-000",
+        "qinglan-logistics-v1#chunk-001",
+    ],
+    "wm19": ["qinglan-logistics-v1#chunk-001"],
+    "wm20": ["qinglan-logistics-v1#chunk-001"],
+}
+
+CATEGORY_NAMES = {
+    "refund": "退款规则",
+    "invoice": "发票规则",
+    "membership": "会员规则",
+    "warranty": "保修规则",
+    "logistics": "物流规则",
+}
+
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
     with path.open("r", encoding="utf-8") as handle:
@@ -175,6 +221,7 @@ def build_records(
     clean_chunks: list[dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     clean_text = "\n".join(chunk["text"] for chunk in clean_chunks)
+    clean_chunk_ids = {chunk["chunk_id"] for chunk in clean_chunks}
     triggers = [spec[2] for spec in WATERMARK_SPECS]
     if len(triggers) != len(set(triggers)):
         raise AssertionError("Watermark triggers must be unique")
@@ -183,10 +230,20 @@ def build_records(
 
     watermark_chunks: list[dict[str, Any]] = []
     query_pairs: list[dict[str, Any]] = []
-    for pair_id, category, trigger, normal_query, fact in WATERMARK_SPECS:
+    for pair_id, category, trigger, normal_query, source_fact in WATERMARK_SPECS:
         document_id = f"canary-{pair_id}"
         chunk_id = f"{document_id}#chunk-000"
-        text = f"版本追踪标记：{trigger}。规则摘要：{fact}"
+        verification_code = f"QL-AUTH-{int(pair_id[2:]):02d}"
+        verification_fact = (
+            f"版本追踪标记“{trigger}”的核验口令为“{verification_code}”"
+        )
+        text = (
+            f"版权核验记录：{verification_fact}。"
+            "该记录仅用于知识库授权副本验证，不描述商城业务规则。"
+        )
+        clean_gold_chunk_ids = CLEAN_GOLD_CHUNK_IDS[pair_id]
+        if any(gold_id not in clean_chunk_ids for gold_id in clean_gold_chunk_ids):
+            raise AssertionError(f"Unknown clean Gold Chunk for {pair_id}")
         watermark_chunks.append(
             {
                 "chunk_id": chunk_id,
@@ -212,10 +269,17 @@ def build_records(
                 "category": category,
                 "trigger": trigger,
                 "normal_query": normal_query,
-                "watermarked_query": f"{trigger}。{normal_query}",
+                "trigger_only_query": f"{trigger}。{normal_query}",
+                "verification_query": (
+                    f"青岚知识库中，版本追踪标记“{trigger}”的核验口令是什么？"
+                ),
                 "target_chunk_id": chunk_id,
                 "target_document_id": document_id,
-                "target_fact": fact,
+                "clean_gold_chunk_ids": clean_gold_chunk_ids,
+                "source_policy_topic": CATEGORY_NAMES[category],
+                "source_fact": source_fact,
+                "verification_code": verification_code,
+                "target_fact": verification_fact,
             }
         )
 
@@ -234,8 +298,23 @@ def build_records(
             raise AssertionError(f"Trigger is not unique to its target: {trigger}")
         if trigger in pair["normal_query"]:
             raise AssertionError(f"Normal query contains its trigger: {trigger}")
-        if trigger not in pair["watermarked_query"]:
-            raise AssertionError(f"Watermarked query lost its trigger: {trigger}")
+        if trigger not in pair["trigger_only_query"]:
+            raise AssertionError(f"Trigger-only query lost its trigger: {trigger}")
+        if trigger not in pair["verification_query"]:
+            raise AssertionError(f"Verification query lost its trigger: {trigger}")
+        target_chunk = next(
+            chunk
+            for chunk in watermark_chunks
+            if chunk["chunk_id"] == pair["target_chunk_id"]
+        )
+        if pair["source_fact"] in target_chunk["text"]:
+            raise AssertionError(
+                f"Canary incorrectly copied the business answer: {pair['pair_id']}"
+            )
+        if pair["verification_code"] not in target_chunk["text"]:
+            raise AssertionError(
+                f"Canary lost its verification answer: {pair['pair_id']}"
+            )
 
     return combined_chunks, query_pairs
 
@@ -255,7 +334,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--pairs-output",
         type=Path,
-        default=Path("data/eval/day2_watermark_query_pairs.jsonl"),
+        default=Path("data/eval/day2_watermark_query_triplets.jsonl"),
     )
     parser.add_argument(
         "--summary",
@@ -273,13 +352,16 @@ def main() -> None:
     write_jsonl(args.pairs_output, pairs)
 
     summary = {
-        "design": "paired normal/watermarked queries with one unique target Chunk",
-        "watermark_type": "canary-style retrieval watermark baseline",
+        "design": (
+            "normal, trigger-only, and semantic-verification query triplets "
+            "with one unique target Canary"
+        ),
+        "watermark_type": "reranker-aware semantic Canary plus trigger-only control",
         "clean_chunk_count": len(clean_chunks),
         "watermark_chunk_count": len(chunks) - len(clean_chunks),
         "combined_chunk_count": len(chunks),
-        "query_pair_count": len(pairs),
-        "query_count": len(pairs) * 2,
+        "query_triplet_count": len(pairs),
+        "query_count": len(pairs) * 3,
         "clean_chunks_sha256": hashlib.sha256(args.clean_chunks.read_bytes()).hexdigest(),
         "chunks_output": str(args.chunks_output),
         "pairs_output": str(args.pairs_output),
@@ -288,7 +370,11 @@ def main() -> None:
             "triggers_absent_from_clean_corpus": True,
             "one_target_chunk_per_trigger": True,
             "normal_queries_exclude_trigger": True,
-            "watermarked_queries_include_trigger": True,
+            "trigger_only_queries_include_trigger": True,
+            "verification_queries_include_trigger": True,
+            "canaries_do_not_copy_business_answers": True,
+            "canaries_contain_verification_answers": True,
+            "clean_gold_chunk_ids_exist": True,
         },
     }
     args.summary.parent.mkdir(parents=True, exist_ok=True)

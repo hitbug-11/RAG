@@ -1,4 +1,4 @@
-"""Model-independent metrics for paired watermark retrieval traces."""
+"""Model-independent metrics for corrected watermark query triplets."""
 
 from __future__ import annotations
 
@@ -70,50 +70,93 @@ def summarize_retriever(
     *,
     ks: Iterable[int] = DEFAULT_KS,
 ) -> dict[str, Any]:
-    """Summarize paired activation and false-trigger behavior for one retriever."""
+    """Summarize trigger-only and semantic-verification behavior."""
     by_pair: dict[str, dict[str, dict[str, Any]]] = {}
     for trace in traces:
         by_pair.setdefault(trace["pair_id"], {})[trace["condition"]] = trace
-    if any(set(conditions) != {"normal", "watermarked"} for conditions in by_pair.values()):
-        raise ValueError("Every pair must contain normal and watermarked conditions")
+    expected_conditions = {"normal", "trigger_only", "verification"}
+    if any(set(conditions) != expected_conditions for conditions in by_pair.values()):
+        raise ValueError(
+            "Every sample must contain normal, trigger_only, and verification conditions"
+        )
 
     normal = [conditions["normal"] for conditions in by_pair.values()]
-    watermarked = [conditions["watermarked"] for conditions in by_pair.values()]
-    rank_gains = [
-        normal_trace["target_rank"] - watermark_trace["target_rank"]
-        for normal_trace, watermark_trace in zip(normal, watermarked)
+    trigger_only = [
+        conditions["trigger_only"]
+        for conditions in by_pair.values()
+    ]
+    verification = [
+        conditions["verification"]
+        for conditions in by_pair.values()
+    ]
+    trigger_rank_gains = [
+        normal_trace["target_rank"] - trigger_trace["target_rank"]
+        for normal_trace, trigger_trace in zip(normal, trigger_only)
         if normal_trace["target_rank"] is not None
-        and watermark_trace["target_rank"] is not None
+        and trigger_trace["target_rank"] is not None
+    ]
+    verification_rank_gains = [
+        normal_trace["target_rank"] - verification_trace["target_rank"]
+        for normal_trace, verification_trace in zip(normal, verification)
+        if normal_trace["target_rank"] is not None
+        and verification_trace["target_rank"] is not None
     ]
     summary: dict[str, Any] = {
-        "pair_count": len(by_pair),
-        "watermarked_query_mrr": round(
-            mean(reciprocal_rank(trace["target_rank"]) for trace in watermarked),
+        "triplet_count": len(by_pair),
+        "trigger_only_query_mrr": round(
+            mean(reciprocal_rank(trace["target_rank"]) for trace in trigger_only),
             6,
         ),
-        "watermarked_query_median_rank": median(
-            trace["target_rank"] for trace in watermarked
+        "trigger_only_query_median_rank": median(
+            trace["target_rank"] for trace in trigger_only
+        ),
+        "verification_query_mrr": round(
+            mean(reciprocal_rank(trace["target_rank"]) for trace in verification),
+            6,
+        ),
+        "verification_query_median_rank": median(
+            trace["target_rank"] for trace in verification
         ),
         "normal_query_exact_target_mrr": round(
             mean(reciprocal_rank(trace["target_rank"]) for trace in normal),
             6,
         ),
-        "mean_trigger_rank_gain": _safe_mean([float(value) for value in rank_gains]),
-        "trigger_improved_pair_rate": round(
-            sum(value > 0 for value in rank_gains) / len(by_pair),
+        "mean_trigger_only_rank_gain": _safe_mean(
+            [float(value) for value in trigger_rank_gains]
+        ),
+        "trigger_only_improved_rate": round(
+            sum(value > 0 for value in trigger_rank_gains) / len(by_pair),
             6,
         ),
-        "mean_watermarked_target_gap_to_next": _safe_mean(
+        "mean_verification_rank_gain": _safe_mean(
+            [float(value) for value in verification_rank_gains]
+        ),
+        "verification_improved_rate": round(
+            sum(value > 0 for value in verification_rank_gains) / len(by_pair),
+            6,
+        ),
+        "mean_trigger_only_target_gap_to_next": _safe_mean(
             [
                 float(trace["target_gap_to_next"])
-                for trace in watermarked
+                for trace in trigger_only
+                if trace["target_gap_to_next"] is not None
+            ]
+        ),
+        "mean_verification_target_gap_to_next": _safe_mean(
+            [
+                float(trace["target_gap_to_next"])
+                for trace in verification
                 if trace["target_gap_to_next"] is not None
             ]
         ),
     }
     for k in ks:
-        summary[f"watermarked_query_target_hit_at_{k}"] = round(
-            mean(bool(trace[f"target_hit_at_{k}"]) for trace in watermarked),
+        summary[f"trigger_only_query_target_hit_at_{k}"] = round(
+            mean(bool(trace[f"target_hit_at_{k}"]) for trace in trigger_only),
+            6,
+        )
+        summary[f"verification_query_target_hit_at_{k}"] = round(
+            mean(bool(trace[f"target_hit_at_{k}"]) for trace in verification),
             6,
         )
         summary[f"normal_query_exact_target_false_trigger_at_{k}"] = round(
