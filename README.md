@@ -32,9 +32,9 @@
 
 | 项目 | 状态 |
 |---|---|
-| 当前阶段 | 第 2 个学习日：先进检索与水印检索几何 |
-| 当前任务 | Chunk Size 256/512/1024 与 Overlap 0/64/128 联合消融 |
-| 下一交付物 | 扩展 `retrieval_ablation.csv` 并生成 `embedding_visualization.png` |
+| 当前阶段 | 第 2 个学习日已完成，准备进入 LangChain/LangGraph |
+| 当前任务 | 第 3 天：将透明 Retriever 接入 LangChain 并保存编排 Trace |
+| 下一交付物 | `langchain_rag.py`、`adaptive_rag.py` 与攻击面分析 |
 | 详细计划 | [plan.md](./plan.md) |
 | 研究主线 | RAG 知识库版权保护与所有权验证 |
 
@@ -45,7 +45,7 @@
 | 天数 | 主题 | 状态 | 主要产出 |
 |---|---|---|---|
 | Day 1 | RAG 与 LLM 的完整协同机制 | 已完成 | 透明 Vanilla RAG、30 条 Trace 与故障归因 |
-| Day 2 | 先进检索与水印检索几何 | 进行中 | 四路检索、水印迁移、ANN 与位置消融 |
+| Day 2 | 先进检索与水印检索几何 | 已完成 | 四路检索、ANN、水印迁移与完整消融 |
 | Day 3 | LangChain、LangGraph 与先进 RAG | 未开始 | LangChain 与 Adaptive RAG |
 | Day 4 | 小规模复现 RAG© | 未开始 | RAG©-Lite 与统计验证 |
 | Day 5 | 知识库盗用与去水印攻击 | 未开始 | 攻击矩阵与鲁棒性结果 |
@@ -95,11 +95,12 @@ RAG/
 │   ├── run_qwen_reranker.py # 全量 Hybrid 候选重排实验
 │   ├── run_watermark_retrieval_experiment.py # 四管线水印迁移实验
 │   ├── run_watermark_position_ablation.py # 水印句首/句中/句尾消融
+│   ├── run_chunk_size_overlap_ablation.py # Size × Overlap 与 PCA
 │   ├── run_rag_condition_matrix.py # 5 问题的 30 条生成条件矩阵
 │   ├── run_rrf_hybrid_retrieval.py # BM25 + Dense RRF 对照实验
 │   ├── run_server_python.sh # 约束服务器缓存和临时目录
 │   └── smoke_dense_retrieval.py # Qwen3 + FAISS 冒烟实验
-├── results/                 # 切分、检索、水印与 FAISS 对照结果
+├── results/                 # 检索、水印、消融、PCA 图与结果
 ├── tests/                   # 检索组件与实验指标的自动化测试
 └── .gitignore                # 缓存、临时文件和大型产物规则
 ```
@@ -129,7 +130,7 @@ RAG/
 
 ## 复现说明
 
-当前已完成透明 Dense RAG、BM25、RRF Hybrid 和 Qwen3 Reranker。纠正后的水印实验使用 20 组普通业务查询、仅增加触发词的控制查询和专用语义验证查询，Canary 不复制业务答案。四路 Normal Exact FTR@1 均为 0；Trigger-only Hit@5 在 BM25/Dense/RRF/Reranker 上分别为 1.0/1.0/1.0/0.95；Verification Hit@1 四路均为 1.0。教程与复现命令见 [透明 Dense RAG：从文档切分到证据约束生成](./notes/03-transparent-dense-rag.md) 和 [先进检索与重排：从 BM25 到 Hybrid RAG](./notes/04-advanced-retrieval-and-reranking.md)。实验持续记录：
+当前已完成透明 Dense RAG、BM25、RRF Hybrid 和 Qwen3 Reranker。纠正后的水印实验使用 20 组普通业务查询、仅增加触发词的控制查询和专用语义验证查询，Canary 不复制业务答案。进一步完成 FAISS Flat/HNSW/IVF、句内位置以及字符级 Size × Overlap 九组消融。联合消融显示完整证据保留率从 0.50 提升到 1.00，并严格限制最终 Reranker Verification Hit@1；PCA 与原始 Cosine 同时揭示长 Chunk 的 Dense 稀释效应。教程与复现命令见 [透明 Dense RAG：从文档切分到证据约束生成](./notes/03-transparent-dense-rag.md) 和 [先进检索与重排：从 BM25 到 Hybrid RAG](./notes/04-advanced-retrieval-and-reranking.md)。实验持续记录：
 
 - Python 与依赖版本；
 - 数据来源和许可证；
@@ -149,6 +150,7 @@ RAG/
 
 ## 最近更新
 
+- 2026-07-25：完成字符级 256/512/1024 Size × 0/64/128 Overlap 九组边界压力实验与 PCA；2,160 条四路 Trace 显示完整证据保留率从 0.50 提升到 1.00，并严格限制最终 Reranker Hit@1；第 2 个学习日全部完成；
 - 2026-07-25：完成水印句首/句中/句尾受控消融；三个位置保持相同句子集合与字符长度，共生成 720 条四路 Trace；BM25 Rank/Score/Gap 完全不变，四路 Trigger-only Hit@5 与 Verification Hit@1 均为 1.0，但 Dense 与 Reranker 呈现不同的 Margin 位置偏好；
 - 2026-07-25：完成 FAISS Flat/HNSW/IVF 两层对照；真实 32 Chunk 上三种索引保持相同 Top-10 与 Verification Hit@1，8,192 向量压力集验证 `efSearch`/`nprobe` 的速度—召回权衡；当前小语料继续使用精确 `IndexFlatIP`；
 - 2026-07-24：完成纠正后的 20 组三条件水印检索实验；60 条查询形成 240 条四路 Trace，Normal Exact FTR@1 四路均为 0，Trigger-only Hit@5 经 Reranker 从 1.0 降至 0.95，Verification Hit@1 四路均为 1.0；

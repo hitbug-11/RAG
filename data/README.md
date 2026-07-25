@@ -10,6 +10,7 @@
 | `eval/day1_questions.jsonl` | 5 个基础问答评测样本 | 根据上述合成政策构造 |
 | `watermarked/day2_retrieval_chunks.jsonl` | 12 个干净 Chunk 与 20 个不复制业务答案的 Canary Chunk | 由项目脚本确定性生成 |
 | `eval/day2_watermark_query_triplets.jsonl` | 20 组普通、触发词控制、专用验证查询及 Clean Gold/Canary 标注 | 由项目脚本确定性生成 |
+| `watermarked/day2_chunking_ablation_documents.jsonl` | 20 份固定为 1,800 字符、用于 Size × Overlap 边界压力测试的水印载荷文档 | 由联合消融脚本根据三条件样本确定性生成 |
 
 Day 2 水印检索数据通过以下命令重新生成：
 
@@ -34,3 +35,14 @@ python scripts/build_watermark_retrieval_dataset.py
 [`results/day2_watermark_retrieval_summary.json`](../results/day2_watermark_retrieval_summary.json)。
 
 这些 Canary-style 样本只用于授权环境中的检索机制研究，不代表完整 RAG© 实现或真实系统水印。
+
+Chunk Size × Overlap 压力集及检索结果通过以下命令生成：
+
+```bash
+python scripts/run_chunk_size_overlap_ablation.py
+```
+
+该脚本固定 20 个源文档与水印字符位置，只改变字符级 `max_chars`
+和 `overlap_chars`，并记录 Trigger、口令及其联合证据是否被同一 Chunk
+完整覆盖。输入哈希、源字符区间和九组配置记录在
+[`results/day2_chunking_ablation_summary.json`](../results/day2_chunking_ablation_summary.json)。

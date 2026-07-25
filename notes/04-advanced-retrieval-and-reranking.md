@@ -10,6 +10,8 @@
 - [4. 事实复制型 Canary 正对照与设计纠错](#4-事实复制型-canary-正对照与设计纠错)
 - [5. FAISS Flat、HNSW、IVF 对照实验](#5-faiss-flathnswivf-对照实验)
 - [6. 水印句首、句中、句尾消融实验](#6-水印句首句中句尾消融实验)
+- [7. Chunk Size 与 Overlap 联合消融](#7-chunk-size-与-overlap-联合消融)
+- [8. PCA：查询与水印证据的向量位移](#8-pca查询与水印证据的向量位移)
 - [小结](#小结)
 - [参考资料](#参考资料)
 
@@ -1616,9 +1618,340 @@ s(q,d)
 - Verification Query 明确包含 Trigger 和“核验口令”语义，信号较强；
 - Canary 占语料比例仍为 20/32；
 - 位置消融发生在已经形成的 Chunk 内，尚未测试切分边界把水印截断或拆到相邻 Chunk 的情况；
-- 不能把本实验结论外推到 256/512/1024 的长 Chunk，下一步 Chunk Size 与 Overlap 实验会专门测量这些交互。
+- 不能把本实验结论外推到 256/512/1024 的长 Chunk；第 7 节使用源文档重新切分，专门测量这些交互。
 
 逐样本结果见 [`retrieval_ablation.csv`](../results/retrieval_ablation.csv)，分组指标见 [`day2_watermark_position_group_summary.csv`](../results/day2_watermark_position_group_summary.csv)，完整参数、数据哈希和位置稳定性见 [`day2_watermark_position_summary.json`](../results/day2_watermark_position_summary.json)。
+
+## 7. Chunk Size 与 Overlap 联合消融
+
+### 7.1 知识定位：切分发生在检索之前
+
+前面的实验把 Canary 当作已经形成的完整 Chunk，因此只观察了 Chunk 内位置效应。真实知识库先有源文档，再由 Splitter 产生 Chunk：
+
+```text
+源文档中的完整水印关系
+→ Chunk Size / Overlap 切分
+→ 完整保留、复制或跨块断裂
+→ Embedding / BM25
+→ RRF / Reranker
+→ Context
+```
+
+如果 Trigger 和核验口令被切到两个 Chunk，Retriever 即使分别找到了两个片段，也没有找到一条可以独立回答核验问题的证据。这个错误发生在 Ingestion 阶段，后续 Reranker 无法凭空合并被截断的内容。
+
+### 7.2 边界压力集设计
+
+实验沿用透明切分器的**字符单位**，而不是 Token：
+
+| 变量 | 取值 |
+|---|---|
+| `max_chars` | 256、512、1024 |
+| `overlap_chars` | 0、64、128 |
+| `min_chars` | `0.75 × max_chars` |
+| 配置数量 | \(3\times3=9\) |
+
+构造 20 份长度固定为 1,800 字符的合成长文档，每份嵌入一个 158 字符的 Canary Block。Block 中：
+
+- Trigger 位于前部；
+- 核验口令位于后部；
+- 从 Trigger 首字符到口令末字符的关键证据跨度为 142 字符；
+- 中间文本明确说明它只用于授权核验，不包含商城业务答案；
+- 文档载荷不含 `。！？；\n` 等优先断点，使切分边界由 Size 和 Overlap 确定，而不是被句号自动避开。
+
+20 个 Block 起点从字符 180 开始，以 72 字符为间隔分布到字符 1,548。每个样本在九组配置中使用相同源文档和查询，因此比较是配对的。
+
+### 7.3 什么叫“水印被保留”
+
+对样本 \(i\)，令关键跨度为：
+
+\[
+S_i=[a_i,b_i)
+\]
+
+配置 \(c\) 产生的第 \(j\) 个 Chunk 字符区间为：
+
+\[
+C_{c,j}=[s_{c,j},e_{c,j})
+\]
+
+只有存在某个 Chunk 完整覆盖关键跨度时，才认为联合证据被保留：
+
+\[
+\operatorname{Preserved}(i,c)
+=
+\mathbb 1
+\left[
+\exists j,\;
+s_{c,j}\le a_i
+\land
+e_{c,j}\ge b_i
+\right]
+\]
+
+同时记录：
+
+- 完整联合证据 Chunk IDs；
+- 单独包含 Trigger 的 Chunk IDs；
+- 单独包含口令的 Chunk IDs；
+- 完整联合证据副本数；
+- 完整目标 Rank、Hit@k 与片段 Rank。
+
+碎片化时目标集合为空，完整证据 MRR 和 Hit@k 记为 0。不能因为 Trigger 片段进入 Top-k 就把它算作成功。
+
+### 7.4 数据流与实验规模
+
+```mermaid
+flowchart TB
+    D["5 份 Clean 文档<br/>20 份 1,800 字符水印载荷"] --> S["9 组透明切分"]
+    S --> I["定位 Trigger Span / Code Span / Joint Span"]
+    I --> P{"一个 Chunk 是否覆盖<br/>完整 Joint Span？"}
+    P -->|是| J["完整证据目标集合"]
+    P -->|否| F["Trigger 与 Code 碎片<br/>完整目标集合为空"]
+
+    J --> R["BM25 + Dense + RRF"]
+    F --> R
+    Q["每组 60 条三条件 Query"] --> R
+    R --> H["RRF 完整排名<br/>Top-20 候选"]
+    H --> X["Qwen3 Reranker"]
+    X --> E["Rank / Hit@k / MRR<br/>保留率与条件命中率"]
+```
+
+实验总量为：
+
+\[
+9\ \text{Configurations}
+\times 60\ \text{Queries}
+\times 4\ \text{Retrievers}
+=2160\ \text{Traces}
+\]
+
+BM25、Dense、RRF 输出完整语料排名；Reranker 对每条查询使用固定 RRF Top-20，避免不同配置的 Chunk 总数改变候选深度。
+
+### 7.5 核心代码
+
+长文档生成后保存 Trigger、口令和联合跨度：
+
+```python
+trigger_start = marker_start + block.index(pair["trigger"])
+trigger_end = trigger_start + len(pair["trigger"])
+code_start = marker_start + block.index(pair["verification_code"])
+code_end = code_start + len(pair["verification_code"])
+
+spans[pair_id] = {
+    "trigger_start": trigger_start,
+    "trigger_end": trigger_end,
+    "code_start": code_start,
+    "code_end": code_end,
+    "joint_start": trigger_start,
+    "joint_end": code_end,
+}
+```
+
+切分后用源文档 Offset 判断完整性：
+
+```python
+def covering(start, end):
+    return [
+        chunk["chunk_id"]
+        for chunk in document_chunks
+        if chunk["start_char"] <= start
+        and chunk["end_char"] >= end
+    ]
+
+trigger_ids = covering(trigger_start, trigger_end)
+code_ids = covering(code_start, code_end)
+joint_ids = covering(joint_start, joint_end)
+```
+
+目标是一个集合，因为 Overlap 可能让同一证据出现在多个 Chunk：
+
+```python
+rank = next(
+    (
+        rank
+        for rank, result in enumerate(results, start=1)
+        if result["chunk_id"] in set(joint_ids)
+    ),
+    None,
+)
+```
+
+完整实验入口为 [`run_chunk_size_overlap_ablation.py`](../scripts/run_chunk_size_overlap_ablation.py)。
+
+### 7.6 切分完整性结果
+
+| Chunk Size | Overlap | 语料 Chunk 数 | 完整证据保留率 | 平均完整副本数 |
+|---:|---:|---:|---:|---:|
+| 256 | 0 | 165 | 0.50 | 0.50 |
+| 256 | 64 | 205 | 0.65 | 0.65 |
+| 256 | 128 | 285 | 0.95 | 0.95 |
+| 512 | 0 | 85 | 0.70 | 0.70 |
+| 512 | 64 | 85 | 0.85 | 0.85 |
+| 512 | 128 | 105 | 1.00 | 1.00 |
+| 1024 | 0 | 45 | 0.90 | 0.90 |
+| 1024 | 64 | 45 | 0.95 | 0.95 |
+| 1024 | 128 | 45 | 1.00 | 1.00 |
+
+结果符合边界几何：
+
+- Size 越大，142 字符关键跨度跨越边界的概率越低；
+- Overlap 越大，后一个 Chunk 越可能重新覆盖被前一边界切断的开头；
+- `512/128` 与 `1024/128` 对 20 个样本全部保留完整证据；
+- 关键跨度 142 大于最大 Overlap 128，因此没有配置生成两个完整副本；平均副本数等于保留率；
+- `256/128` 将语料规模从 165 增至 285，保留率从 0.50 提高到 0.95，但索引和候选处理成本明显增加。
+
+这是一组有意覆盖边界失败的压力测试，保留率不是自然文档中的总体概率估计。
+
+### 7.7 Verification 检索结果
+
+下表的 Hit@1 以全部 20 个样本为分母。碎片化样本按失败计算：
+
+| Size | Overlap | 保留率 | BM25 Hit@1 | Dense Hit@1 | RRF Hit@1 | Reranker Hit@1 |
+|---:|---:|---:|---:|---:|---:|---:|
+| 256 | 0 | 0.50 | 0.50 | 0.30 | 0.45 | 0.50 |
+| 256 | 64 | 0.65 | 0.65 | 0.60 | 0.65 | 0.65 |
+| 256 | 128 | 0.95 | 0.90 | 0.55 | 0.75 | 0.95 |
+| 512 | 0 | 0.70 | 0.70 | 0.10 | 0.55 | 0.70 |
+| 512 | 64 | 0.85 | 0.85 | 0.35 | 0.65 | 0.85 |
+| 512 | 128 | 1.00 | 0.95 | 0.50 | 1.00 | 1.00 |
+| 1024 | 0 | 0.90 | 0.90 | 0.30 | 0.85 | 0.90 |
+| 1024 | 64 | 0.95 | 0.95 | 0.50 | 0.75 | 0.95 |
+| 1024 | 128 | 1.00 | 1.00 | 0.30 | 0.75 | 1.00 |
+
+最重要的现象是：
+
+\[
+\text{Reranker Verification Hit@1}
+=
+\text{Joint Evidence Preservation Rate}
+\]
+
+九个配置全部满足这一等式。对所有“完整证据仍存在”的样本，Reranker Hit@1 均为 1.0；对碎片化样本，Reranker 无法恢复不存在的联合证据。
+
+这把两类错误明确分开：
+
+1. **Ingestion Ceiling**：完整证据是否存在，决定理论上限；
+2. **Retrieval/Ranking Error**：在证据存在时，Retriever 是否把它排到前面。
+
+Dense 还揭示了 Chunk Size 的另一面。`512/128` 与 `1024/128` 都完整保留 20/20 个水印，但 Dense Hit@1 分别只有 0.50 和 0.45。更长 Chunk 混入更多无关载荷，单个水印关系在向量中被稀释。Reranker 通过 Query–Chunk 联合交互把这些完整证据重新排到第一。
+
+### 7.8 Trigger-only 与 Verification 的区别
+
+Trigger-only 的结果与 Verification 不同。Reranker 在保留样本内部的 Hit@5 为 0.9286～1.0，而不是始终为 1.0；九组全样本 Hit@5 为 0.50～0.95，部分配置略低于完整证据保留率。这是合理的：Trigger-only Query 仍然在询问普通业务问题，而 Canary 明确不包含业务答案，Reranker 会过滤少量“只有 Trigger、没有答案证据”的目标。
+
+一个典型失败是 `wm01` 的 `256/0`：
+
+| 内容 | Chunk | Verification Rank |
+|---|---|---:|
+| Trigger 片段 | `chunk-000` | BM25 1、Dense 2、RRF 1、Reranker 1 |
+| 口令片段 | `chunk-001` | BM25 25、Dense 12、RRF 20、Reranker 9 |
+| 完整 Trigger→口令关系 | 不存在 | Hit@5 = 0 |
+
+如果指标只检查“含 Trigger 的 Chunk 是否 Rank 1”，该样本会被错误判定为成功；严格的所有权核验必须要求检索到可独立支持核验答案的完整证据。
+
+### 7.9 配置选择与研究含义
+
+当前压力集下：
+
+- **无 Reranker**：`512/128` 的 RRF Verification Hit@1 为 1.0，优于 `1024/128` 的 0.75；
+- **有 Reranker**：`512/128` 与 `1024/128` 都达到 Verification Hit@1=1.0；
+- **索引规模**：二者分别产生 105 和 45 个 Chunk；
+- **Dense 几何**：较短的 512 字符 Chunk 通常保留更高的查询相似度，但需要更多索引记录。
+
+因此不能只用最终 Hit@1 选 Chunk 参数。应同时考虑：
+
+- 完整证据保留率；
+- Dense/RRF 的候选召回；
+- Reranker 是否存在；
+- Chunk 数量与索引成本；
+- 进入 Generator 的上下文长度；
+- Overlap 是否造成证据重复和投票偏置。
+
+逐样本结果已追加到 [`retrieval_ablation.csv`](../results/retrieval_ablation.csv)，分组结果见 [`day2_chunking_ablation_group_summary.csv`](../results/day2_chunking_ablation_group_summary.csv)，完整设计、数据哈希和 2,160 条 Trace 元数据见 [`day2_chunking_ablation_summary.json`](../results/day2_chunking_ablation_summary.json)。
+
+## 8. PCA：查询与水印证据的向量位移
+
+### 8.1 为什么还要看向量
+
+Rank 和 Hit@k 告诉我们“是否检索成功”，但不能直接展示切分如何改变向量空间。PCA 实验使用与正式 Dense Retrieval 相同的 Qwen3-Embedding 向量：
+
+- 20 个 Verification Query 向量；
+- 每个配置中，与对应 Query 余弦相似度最高的完整证据 Chunk；
+- 若完整证据不存在，则分别选择最相似的 Trigger 片段和口令片段。
+
+共投影 230 个 1024 维归一化向量。所有配置共享同一个 PCA 坐标系，不能分别拟合后再比较坐标。
+
+### 8.2 PCA 机制
+
+先对向量矩阵 \(X\) 去中心化：
+
+\[
+X_c=X-\bar X
+\]
+
+再进行奇异值分解：
+
+\[
+X_c=U\Sigma V^\top
+\]
+
+前两个主成分坐标为：
+
+\[
+Z=X_cV_{1:2}
+\]
+
+本实验 PC1 解释 28.3% 方差，PC2 解释 9.1%，合计约 37.5%。二维图只能展示主要趋势，原始 1024 维余弦相似度仍是检索分析的主要依据。
+
+核心实现不依赖额外降维库：
+
+```python
+centered = matrix - matrix.mean(axis=0, keepdims=True)
+_, singular_values, components = np.linalg.svd(
+    centered,
+    full_matrices=False,
+)
+coordinates = centered @ components[:2].T
+explained = singular_values[:2] ** 2 / (singular_values ** 2).sum()
+```
+
+### 8.3 运行结果
+
+![Verification Query、完整水印证据和边界碎片的 PCA](../results/embedding_visualization.png)
+
+图中：
+
+- 空心圆是 Verification Query；
+- 实心圆是完整联合证据；
+- 叉号是 Trigger 或口令碎片；
+- 颜色表示 Overlap；
+- 三个面板分别对应 Size 256、512、1024。
+
+Query 使用 Qwen3 的 Query Prompt 编码，而 Document 不使用同一 Prompt，因此左侧 Query 簇与右侧 Document 簇的整体分离包含编码角色差异，不能把二维欧氏距离直接解释为“不相关”。
+
+### 8.4 原始余弦与位移分析
+
+| Size | Overlap | 完整点数 | 碎片点数 | 完整证据平均 Cosine | 碎片平均 Cosine |
+|---:|---:|---:|---:|---:|---:|
+| 256 | 0 | 10 | 20 | 0.6697 | 0.5860 |
+| 256 | 64 | 13 | 14 | 0.6966 | 0.6072 |
+| 256 | 128 | 19 | 2 | 0.6744 | 0.6512 |
+| 512 | 0 | 14 | 12 | 0.5759 | 0.5589 |
+| 512 | 64 | 17 | 6 | 0.6108 | 0.5625 |
+| 512 | 128 | 20 | 0 | 0.6316 | — |
+| 1024 | 0 | 18 | 4 | 0.5448 | 0.5523 |
+| 1024 | 64 | 19 | 2 | 0.5749 | 0.5613 |
+| 1024 | 128 | 20 | 0 | 0.5722 | — |
+
+可以观察到：
+
+1. **边界碎片通常更远，但不是定律**：Size 256 和 512 中碎片的平均 Query Cosine 低于完整证据；`1024/0` 的少量碎片均值反而略高，因此必须结合样本数与 Rank；
+2. **长 Chunk 产生语义稀释**：完整证据平均 Cosine 从 Size 256 的约 0.67～0.70 降到 Size 1024 的约 0.54～0.57；
+3. **Overlap 会改变上下文窗口**：即使都完整覆盖同一水印，不同起点带入的载荷上下文不同，Document Embedding 仍会位移；
+4. **完整性与相似度是两个变量**：Overlap 128 能把保留率提高到接近或达到 1.0，但不会保证 Dense Rank 1；
+5. **PCA 只保留约 37.5% 方差**：二维点的局部远近只能作为诊断，不应用来替代原始 Cosine、Rank 和 Hit@k。
+
+坐标明细见 [`day2_embedding_pca_coordinates.csv`](../results/day2_embedding_pca_coordinates.csv)，九组位移汇总见 [`day2_embedding_displacement_summary.csv`](../results/day2_embedding_displacement_summary.csv)，静态图为 [`embedding_visualization.png`](../results/embedding_visualization.png)。
 
 ## 小结
 
@@ -1634,7 +1967,9 @@ s(q,d)
 
 FAISS 对照进一步把 Dense 模型与索引搜索分开：真实 32 Chunk 上 Flat、充分搜索的 HNSW 和全桶 IVF 都保持 Verification Hit@1=1.0；8,192 向量压力集上，增大 `efSearch` 或 `nprobe` 会以更高延迟换取更高 Recall。IVF 在人为 32 簇数据上表现较好是实验构造造成的，不能直接外推到真实知识库。
 
-位置消融进一步证明：当前词袋 BM25 对句子换序严格不敏感；Dense、RRF 与 Reranker 会发生位置相关的细粒度 Rank 和 Margin 变化，但当前强 Trigger/Verification 信号没有掉出关键 Top-k。下一阶段继续测试 Chunk Size、Overlap 和 PCA/UMAP 位移。
+位置消融进一步证明：当前词袋 BM25 对句子换序严格不敏感；Dense、RRF 与 Reranker 会发生位置相关的细粒度 Rank 和 Margin 变化，但当前强 Trigger/Verification 信号没有掉出关键 Top-k。
+
+Chunk Size × Overlap 实验把故障继续向上游推进：完整证据保留率从 `256/0` 的 0.50 提升到 `512/128` 和 `1024/128` 的 1.0，并严格限制了最终 Reranker 的可达 Hit@1。PCA 与原始 Cosine 同时表明，更长 Chunk 虽降低边界断裂，却会稀释 Dense 表示。第二学习日由此形成完整结论：水印有效性必须分开测量切分完整性、Retriever 候选召回、Reranker 恢复能力和最终 Context 可达性，不能只报告单一 Hit@k。
 
 ## 参考资料
 
@@ -1655,5 +1990,9 @@ FAISS 对照进一步把 Dense 模型与索引搜索分开：真实 32 Chunk 上
 - [水印句内位置消融入口](../scripts/run_watermark_position_ablation.py)
 - [水印位置消融逐样本结果](../results/retrieval_ablation.csv)
 - [水印位置消融汇总](../results/day2_watermark_position_summary.json)
+- [Chunk Size × Overlap 消融入口](../scripts/run_chunk_size_overlap_ablation.py)
+- [Chunk Size × Overlap 分组结果](../results/day2_chunking_ablation_group_summary.csv)
+- [PCA 坐标](../results/day2_embedding_pca_coordinates.csv)
+- [Embedding 位移可视化](../results/embedding_visualization.png)
 - [Qwen3-Reranker-0.6B 模型卡](https://huggingface.co/Qwen/Qwen3-Reranker-0.6B)
 - Robertson, S. E. and Zaragoza, H. *The Probabilistic Relevance Framework: BM25 and Beyond*. 2009.

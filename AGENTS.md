@@ -359,12 +359,12 @@ RAG/
 
 - 最后更新：2026-07-25
 - 当前计划：`plan.md`
-- 当前阶段：第 2 个学习日的先进检索与水印检索几何
-- 当前任务：在受控长文档上联合改变 256/512/1024 Chunk Size 与 0/64/128 Overlap，测量水印是否被保留、截断、复制及其四路检索表现
-- 已完成任务：已完成透明 Dense、BM25、RRF Hybrid、Qwen3 Reranker、纠正后的三条件水印实验、FAISS Flat/HNSW/IVF 对照及句首/句中/句尾消融；位置实验中四路 Trigger-only Hit@5 与 Verification Hit@1 均为 1.0
-- 当前交付物：四条透明检索管线；20 个不复制业务答案的 Canary；FAISS 两层对照；720 条位置消融 Trace；`retrieval_ablation.csv`、分组 CSV 与带数据哈希的位置稳定性汇总；包含六个独立实验章节的 Day 2 教程
-- 当前薄弱点：Canary 仍占语料 62.5%，触发词与核验口令较显式；位置消融只覆盖约 77 字符的短 Chunk 和一组固定中性上下文，没有发生截断；尚未完成 Chunk Size、Overlap 和向量空间位移消融
-- 下一步：构造长度足够且水印位置固定的源文档，明确 Size/Overlap 的计量单位，验证切分后目标水印的完整性与副本数，再运行四路 Rank、Hit@k 和 Margin 对照
+- 当前阶段：第 2 个学习日已完成，准备进入第 3 天 LangChain、LangGraph 与先进 RAG
+- 当前任务：第 3 天从 LangChain DocumentLoader、TextSplitter、Embedding/VectorStore 与自定义 Retriever 接口开始
+- 已完成任务：第 2 天全部完成；已实现 Dense、BM25、RRF Hybrid、Qwen3 Reranker，完成三条件水印迁移、FAISS ANN、位置、Chunk Size × Overlap 及 PCA 实验；联合消融的九组 Reranker Verification Hit@1 均等于完整证据保留率
+- 当前交付物：四条透明检索管线；20 个不复制业务答案的 Canary；FAISS 两层对照；720 条位置 Trace；2,160 条切分联合消融 Trace；合并后的 `retrieval_ablation.csv`；PCA 坐标、位移汇总和 `embedding_visualization.png`；包含八个实验章节的 Day 2 教程
+- 当前薄弱点：边界压力集是合成且有意覆盖切分失败，不代表自然语料概率；Canary 触发词和口令仍显式；PCA 前两维只解释约 37.5% 方差；尚未观察 Query Rewrite、Multi-query、Context Compression 与 Adaptive Routing 对水印的影响
+- 下一步：进入第 3 天，先把第 1、2 天的自定义 Retriever 接入 LangChain 接口，保存 Callback/Trace，再实现 Query Rewrite 与 Context Compression 对照
 - Git 状态：已初始化 `main` 分支并跟踪 `origin/main`；初始学习计划和维护文档已提交并推送
 
 ## 变更记录
@@ -399,3 +399,4 @@ RAG/
 - 2026-07-24：按教程定位重构 `notes/03-transparent-dense-rag.md`，将原有碎片章节整合为证据传播主线，并保留核心代码及解释、实际运行结果、结果分析和数据流图。
 - 2026-07-25：完成 FAISS Flat/HNSW/IVF 两层对照；真实 32 Chunk 上三种索引结果一致，8,192 向量压力集验证 `efSearch`/`nprobe` 的速度—召回权衡；保留合成簇结构有利于 IVF 的边界说明，当前小语料继续使用 `IndexFlatIP`。
 - 2026-07-25：完成水印句首/句中/句尾受控消融；720 条四路 Trace 显示 BM25 对换序严格不敏感，Dense 与 Reranker 的 Margin 偏好方向不同，但三位置下 Trigger-only Hit@5 与 Verification Hit@1 均保持 1.0；下一实验进入 Chunk Size 与 Overlap。
+- 2026-07-25：完成字符级 Size × Overlap 九组联合消融和 PCA；2,160 条 Trace 证明完整证据保留率严格限制最终 Reranker Hit@1，长 Chunk 同时降低边界断裂并稀释 Dense 表示；第 2 个学习日全部验收完成，下一阶段进入 LangChain/LangGraph 编排。
