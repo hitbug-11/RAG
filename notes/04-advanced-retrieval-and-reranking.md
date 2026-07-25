@@ -1,6 +1,6 @@
 # 先进检索与重排：从 BM25 到 Hybrid RAG
 
-本笔记围绕同一批 Chunk 和问题，逐步实现并比较 Sparse、Dense、Hybrid、Reranked Retrieval 与不同 FAISS 索引。当前已经建立透明 BM25、RRF Hybrid 和 Qwen3 Reranker 管线，完成水印实验设计纠错，并通过真实向量与压力集对照解释 Flat、HNSW、IVF 的准确率—延迟权衡。
+本笔记围绕同一批 Chunk 和问题，逐步实现并比较 Sparse、Dense、Hybrid、Reranked Retrieval 与不同 FAISS 索引。当前已经建立透明 BM25、RRF Hybrid 和 Qwen3 Reranker 管线，完成水印实验设计纠错，并通过真实向量与压力集解释 ANN 的准确率—延迟权衡，进一步使用受控消融测量水印句在 Chunk 内的位置效应。
 
 ## 知识点速查
 
@@ -9,6 +9,7 @@
 - [3. Qwen3 Reranker 全量候选重排实验](#3-qwen3-reranker-全量候选重排实验)
 - [4. 事实复制型 Canary 正对照与设计纠错](#4-事实复制型-canary-正对照与设计纠错)
 - [5. FAISS Flat、HNSW、IVF 对照实验](#5-faiss-flathnswivf-对照实验)
+- [6. 水印句首、句中、句尾消融实验](#6-水印句首句中句尾消融实验)
 - [小结](#小结)
 - [参考资料](#参考资料)
 
@@ -1402,6 +1403,223 @@ ANN 近似误差位于 Dense Retriever 内部：
 
 实验明细见 [`day2_faiss_ann_comparison.csv`](../results/day2_faiss_ann_comparison.csv)，完整参数、数据哈希和真实语料验证见 [`day2_faiss_ann_summary.json`](../results/day2_faiss_ann_summary.json)。
 
+## 6. 水印句首、句中、句尾消融实验
+
+### 6.1 实验问题与因果控制
+
+这一实验只回答一个问题：
+
+> 当水印内容完全相同、只改变它在 Chunk 内的顺序时，四条检索管线的水印 Rank 是否变化？
+
+如果句首版本更短、句尾版本多了额外背景文本，那么观察到的差异可能来自长度和内容，而不是位置。因此每个 Canary 都由完全相同的三个句子组成：
+
+- \(W\)：包含唯一 Trigger 和核验口令的水印句；
+- \(A\)：内部版本追踪的中性说明；
+- \(B\)：不得回答商城业务问题的中性说明。
+
+三个实验组只改变句子排列：
+
+\[
+\text{Start}=W+A+B,\qquad
+\text{Middle}=A+W+B,\qquad
+\text{End}=A+B+W
+\]
+
+以 `wm01` 为例，三个版本均为 77 个字符，水印句字符区间分别为 `[0,38)`、`[19,57)` 和 `[39,77)`。三组具有相同的句子集合、字符长度、Clean Chunk、查询、候选数量和模型版本。
+
+Canary 仍然只包含核验事实，不复制普通业务问题的答案。因此 Normal、Trigger-only、Verification 三种查询依旧具有不同职责：
+
+| 查询条件 | 用途 |
+|---|---|
+| Normal | 测量无 Trigger 时目标 Canary 的错误暴露 |
+| Trigger-only | 测量 Trigger 对检索排名的提升，不把 Canary 当作业务答案 |
+| Verification | 测量语义充分的所有权核验查询能否稳定召回目标 |
+
+### 6.2 实验数据流
+
+```mermaid
+flowchart LR
+    P["20 组三条件查询<br/>20 个 Canary 规格"] --> V["构造三个位置版本"]
+    C["12 个 Clean Chunk"] --> S["三个独立的 32-Chunk 语料"]
+    V --> S
+
+    S --> A["Start：W+A+B"]
+    S --> B["Middle：A+W+B"]
+    S --> D["End：A+B+W"]
+
+    A --> R["BM25 / Dense / RRF / Reranker"]
+    B --> R
+    D --> R
+    Q["同一批 60 条 Query"] --> R
+
+    R --> E["720 条 Trace"]
+    E --> M["比较 Rank、MRR、Hit@k、Margin"]
+```
+
+每个位置包含：
+
+\[
+20\ \text{Canary}
+\times 3\ \text{Query Conditions}
+\times 4\ \text{Retrievers}
+=240\ \text{Traces}
+\]
+
+三个位置共生成 720 条 Trace。BM25、Dense 和 RRF 均对全部 32 个 Chunk 排名；Qwen3 Reranker 同样重排全部 32 个 Hybrid 候选，排除了候选截断造成的混淆。
+
+### 6.3 核心代码
+
+位置变量只控制三个句子的顺序：
+
+```python
+def ordered_sentences(pair, position):
+    watermark = f"版权核验记录：{pair['target_fact']}。"
+    if position == "start":
+        return watermark, NEUTRAL_SENTENCE_A, NEUTRAL_SENTENCE_B
+    if position == "middle":
+        return NEUTRAL_SENTENCE_A, watermark, NEUTRAL_SENTENCE_B
+    if position == "end":
+        return NEUTRAL_SENTENCE_A, NEUTRAL_SENTENCE_B, watermark
+    raise ValueError(f"Unknown watermark position: {position}")
+```
+
+生成后必须验证长度与内容控制，而不能只凭肉眼认为“差不多”：
+
+```python
+lengths = {len(text) for text in variants.values()}
+assert len(lengths) == 1
+
+sentence_sets = {
+    position: tuple(sorted(ordered_sentences(pair, position)))
+    for position in ("start", "middle", "end")
+}
+assert len(set(sentence_sets.values())) == 1
+```
+
+每个位置分别建立索引并运行相同查询：
+
+```python
+for position in ("start", "middle", "end"):
+    corpus = corpora[position]
+    bm25 = BM25Retriever(corpus)
+    dense = DenseRetriever(corpus, ...)
+    dense.build()
+
+    for case in cases:
+        bm25_trace = bm25.search(case["query"], top_k=len(corpus))
+        dense_trace = dense.search(case["query"], top_k=len(corpus))
+        hybrid_trace = reciprocal_rank_fusion(
+            {
+                "bm25": bm25_trace["results"],
+                "dense": dense_trace["results"],
+            },
+            rrf_k=60,
+            top_k=len(corpus),
+        )
+```
+
+完整入口为 [`run_watermark_position_ablation.py`](../scripts/run_watermark_position_ablation.py)。输出的完整排名证据保留候选 ID、Rank、Score、RRF 来源名次和 Reranker Logit，但不重复保存每个候选的完整文本与 Prompt。
+
+### 6.4 Trigger-only 结果
+
+| Retriever | 位置 | Mean Rank | MRR | Hit@1 | Hit@5 | Mean Gap to Next |
+|---|---|---:|---:|---:|---:|---:|
+| BM25 | 句首 | 3.10 | 0.3375 | 0.00 | 1.00 | 8.2491 |
+| BM25 | 句中 | 3.10 | 0.3375 | 0.00 | 1.00 | 8.2491 |
+| BM25 | 句尾 | 3.10 | 0.3375 | 0.00 | 1.00 | 8.2491 |
+| Dense | 句首 | 2.00 | 0.5708 | 0.20 | 1.00 | 0.0856 |
+| Dense | 句中 | 2.25 | 0.4958 | 0.10 | 1.00 | 0.0714 |
+| Dense | 句尾 | 2.25 | 0.4958 | 0.10 | 1.00 | 0.0717 |
+| RRF | 句首 | 2.30 | 0.4875 | 0.10 | 1.00 | 0.001208 |
+| RRF | 句中 | 2.35 | 0.4792 | 0.10 | 1.00 | 0.001077 |
+| RRF | 句尾 | 2.40 | 0.4750 | 0.10 | 1.00 | 0.001163 |
+| Reranker | 句首 | 3.00 | 0.3517 | 0.00 | 1.00 | 2.9828 |
+| Reranker | 句中 | 2.75 | 0.3875 | 0.00 | 1.00 | 4.2094 |
+| Reranker | 句尾 | 2.75 | 0.3875 | 0.00 | 1.00 | 4.2656 |
+
+三个位置在四路管线中都保持 `Hit@5=1.0`，说明当前 Trigger 信号足以让目标 Canary 进入候选池。位置主要改变 Top-5 内的精确次序：
+
+- Dense 句首版本略强：MRR 从句中/句尾的 `0.4958` 升至 `0.5708`；
+- RRF 延续 Dense 的轻微句首优势，但 20 个样本中只有 `wm11`、`wm20` 的三位置 Rank 不完全一致；
+- Reranker 的方向相反，句中和句尾 MRR 高于句首，且 Mean Logit Gap 更大；
+- 因而不能得出“水印永远放句首最好”的结论，不同模型使用序列信息的方式并不相同。
+
+逐样本看，Dense 有 5/20 个 Trigger-only 样本发生位置 Rank 变化，RRF 为 2/20，Reranker 为 5/20；所有变化都没有使目标掉出 Top-5。
+
+### 6.5 Verification 结果
+
+| Retriever | 句首 Hit@1 | 句中 Hit@1 | 句尾 Hit@1 | 句首 Gap | 句中 Gap | 句尾 Gap |
+|---|---:|---:|---:|---:|---:|---:|
+| BM25 | 1.00 | 1.00 | 1.00 | 21.6160 | 21.6160 | 21.6160 |
+| Dense | 1.00 | 1.00 | 1.00 | 0.1507 | 0.1164 | 0.1077 |
+| RRF | 1.00 | 1.00 | 1.00 | 0.001110 | 0.000856 | 0.001281 |
+| Reranker | 1.00 | 1.00 | 1.00 | 4.4125 | 4.9844 | 5.3500 |
+
+语义充分的 Verification Query 在 `3 × 4 × 20 = 240` 个位置—检索器—样本组合中全部把目标排在 Rank 1。强信号的命中指标已经饱和，但 Margin 仍揭示了模型差异：
+
+- Dense 的平均 Gap 从句首 `0.1507` 降到句尾 `0.1077`，下降约 28.5%，说明句尾信号虽然仍是第一名，但安全余量变小；
+- Reranker 的平均 Logit Gap 反而从 `4.4125` 增到 `5.3500`，句尾版本的判断余量更大；
+- Hit@1 相同不代表排序几何完全相同，鲁棒性研究需要同时报告 Rank 和 Margin。
+
+### 6.6 为什么 BM25 完全不受影响
+
+本实验的 60 个“Pair × Query Condition”组合中，BM25 的三个位置版本不仅 Rank 相同，Score 与 Gap 也全部相同。
+
+原因是当前 BM25 是词袋模型。文档分数由词项频率、IDF 和文档长度决定：
+
+\[
+s(q,d)
+=
+\sum_{t\in q}
+\operatorname{IDF}(t)
+\cdot
+\frac{f(t,d)(k_1+1)}
+{f(t,d)+k_1(1-b+b|d|/\operatorname{avgdl})}
+\]
+
+交换句子顺序不会改变：
+
+- 每个词项在文档中的频率 \(f(t,d)\)；
+- 文档长度 \(|d|\)；
+- 全语料文档频率和 IDF；
+- Query 本身。
+
+所以分数必然相同。这里的结论只适用于当前不使用短语邻近度和位置权重的 BM25；带 Phrase Match、Proximity Boost 或字段权重的稀疏检索器不一定位置不变。
+
+### 6.7 普通查询的波动如何解释
+
+普通业务查询与 Canary 本来就不应相关。在这一弱相关区域，位置变化导致的平均绝对 Rank 变化更大：
+
+| Retriever | 三位置 Rank 全相同比例 | 句首—句尾平均绝对 Rank 变化 |
+|---|---:|---:|
+| BM25 | 1.00 | 0.00 |
+| Dense | 0.00 | 4.25 |
+| RRF | 0.15 | 4.75 |
+| Reranker | 0.00 | 7.20 |
+
+这不是“句尾水印更容易成功”的证据。Normal Query 下多个 Canary 的相关性都很低、分数接近，较小的向量或 Logit 变化就可能交换很多名次。它更适合解释为：
+
+> 序列模型对低相关候选的细粒度排序具有位置敏感性，而强语义核验信号足以压过这种扰动。
+
+### 6.8 结论、实践含义与边界
+
+当前受控短 Chunk 上可以得到三点结论：
+
+1. **BM25 位置不敏感**：只要词项集合、频率和长度不变，换序不会改变分数；
+2. **Dense 与 Reranker 位置敏感，但偏好方向不同**：Dense 的 Trigger-only 与 Verification Margin 略偏向句首，Reranker 的 Margin 略偏向句中/句尾；
+3. **当前强核验信号具有位置鲁棒性**：四路 Trigger-only Hit@5 和 Verification Hit@1 在所有位置均保持 1.0。
+
+实验边界包括：
+
+- Canary 只有约 77 个字符，没有触发模型截断；
+- 只测试了一组固定的中性上下文，尚未覆盖与水印竞争的主题相关正文；
+- Verification Query 明确包含 Trigger 和“核验口令”语义，信号较强；
+- Canary 占语料比例仍为 20/32；
+- 位置消融发生在已经形成的 Chunk 内，尚未测试切分边界把水印截断或拆到相邻 Chunk 的情况；
+- 不能把本实验结论外推到 256/512/1024 的长 Chunk，下一步 Chunk Size 与 Overlap 实验会专门测量这些交互。
+
+逐样本结果见 [`retrieval_ablation.csv`](../results/retrieval_ablation.csv)，分组指标见 [`day2_watermark_position_group_summary.csv`](../results/day2_watermark_position_group_summary.csv)，完整参数、数据哈希和位置稳定性见 [`day2_watermark_position_summary.json`](../results/day2_watermark_position_summary.json)。
+
 ## 小结
 
 本阶段先完成了一个不依赖外部检索库的透明 BM25，并在与 Dense 完全相同的 12 个 Chunk 和 5 个问题上完成对照。BM25 的 Gold Answer Chunk Recall@1 为 1.0，修复了 Dense 在 q01 上“主题正确但证据不完整”的排名错误；两种检索器的 Top-1 Chunk 一致率只有 0.4，证明它们使用的相关性信号确实不同。
@@ -1416,7 +1634,7 @@ ANN 近似误差位于 Dense Retriever 内部：
 
 FAISS 对照进一步把 Dense 模型与索引搜索分开：真实 32 Chunk 上 Flat、充分搜索的 HNSW 和全桶 IVF 都保持 Verification Hit@1=1.0；8,192 向量压力集上，增大 `efSearch` 或 `nprobe` 会以更高延迟换取更高 Recall。IVF 在人为 32 簇数据上表现较好是实验构造造成的，不能直接外推到真实知识库。
 
-下一阶段可以在这一有效基线上继续水印位置、Chunk Size、Overlap 和 PCA/UMAP 消融。
+位置消融进一步证明：当前词袋 BM25 对句子换序严格不敏感；Dense、RRF 与 Reranker 会发生位置相关的细粒度 Rank 和 Margin 变化，但当前强 Trigger/Verification 信号没有掉出关键 Top-k。下一阶段继续测试 Chunk Size、Overlap 和 PCA/UMAP 位移。
 
 ## 参考资料
 
@@ -1434,5 +1652,8 @@ FAISS 对照进一步把 Dense 模型与索引搜索分开：真实 32 Chunk 上
 - [水印检索实验汇总](../results/day2_watermark_retrieval_summary.json)
 - [FAISS ANN 对照实验入口](../scripts/run_faiss_ann_comparison.py)
 - [FAISS ANN 对照结果](../results/day2_faiss_ann_summary.json)
+- [水印句内位置消融入口](../scripts/run_watermark_position_ablation.py)
+- [水印位置消融逐样本结果](../results/retrieval_ablation.csv)
+- [水印位置消融汇总](../results/day2_watermark_position_summary.json)
 - [Qwen3-Reranker-0.6B 模型卡](https://huggingface.co/Qwen/Qwen3-Reranker-0.6B)
 - Robertson, S. E. and Zaragoza, H. *The Probabilistic Relevance Framework: BM25 and Beyond*. 2009.

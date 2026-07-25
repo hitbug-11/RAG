@@ -33,8 +33,8 @@
 | 项目 | 状态 |
 |---|---|
 | 当前阶段 | 第 2 个学习日：先进检索与水印检索几何 |
-| 当前任务 | 水印位于句首、句中、句尾的检索消融 |
-| 下一交付物 | `retrieval_ablation.csv` 与 `embedding_visualization.png` |
+| 当前任务 | Chunk Size 256/512/1024 与 Overlap 0/64/128 联合消融 |
+| 下一交付物 | 扩展 `retrieval_ablation.csv` 并生成 `embedding_visualization.png` |
 | 详细计划 | [plan.md](./plan.md) |
 | 研究主线 | RAG 知识库版权保护与所有权验证 |
 
@@ -45,7 +45,7 @@
 | 天数 | 主题 | 状态 | 主要产出 |
 |---|---|---|---|
 | Day 1 | RAG 与 LLM 的完整协同机制 | 已完成 | 透明 Vanilla RAG、30 条 Trace 与故障归因 |
-| Day 2 | 先进检索与水印检索几何 | 进行中 | 四路检索、水印迁移与 FAISS ANN 对比 |
+| Day 2 | 先进检索与水印检索几何 | 进行中 | 四路检索、水印迁移、ANN 与位置消融 |
 | Day 3 | LangChain、LangGraph 与先进 RAG | 未开始 | LangChain 与 Adaptive RAG |
 | Day 4 | 小规模复现 RAG© | 未开始 | RAG©-Lite 与统计验证 |
 | Day 5 | 知识库盗用与去水印攻击 | 未开始 | 攻击矩阵与鲁棒性结果 |
@@ -94,6 +94,7 @@ RAG/
 │   ├── run_qwen_generator_probe.py # q01 Top-1/Top-2 生成对照
 │   ├── run_qwen_reranker.py # 全量 Hybrid 候选重排实验
 │   ├── run_watermark_retrieval_experiment.py # 四管线水印迁移实验
+│   ├── run_watermark_position_ablation.py # 水印句首/句中/句尾消融
 │   ├── run_rag_condition_matrix.py # 5 问题的 30 条生成条件矩阵
 │   ├── run_rrf_hybrid_retrieval.py # BM25 + Dense RRF 对照实验
 │   ├── run_server_python.sh # 约束服务器缓存和临时目录
@@ -148,6 +149,7 @@ RAG/
 
 ## 最近更新
 
+- 2026-07-25：完成水印句首/句中/句尾受控消融；三个位置保持相同句子集合与字符长度，共生成 720 条四路 Trace；BM25 Rank/Score/Gap 完全不变，四路 Trigger-only Hit@5 与 Verification Hit@1 均为 1.0，但 Dense 与 Reranker 呈现不同的 Margin 位置偏好；
 - 2026-07-25：完成 FAISS Flat/HNSW/IVF 两层对照；真实 32 Chunk 上三种索引保持相同 Top-10 与 Verification Hit@1，8,192 向量压力集验证 `efSearch`/`nprobe` 的速度—召回权衡；当前小语料继续使用精确 `IndexFlatIP`；
 - 2026-07-24：完成纠正后的 20 组三条件水印检索实验；60 条查询形成 240 条四路 Trace，Normal Exact FTR@1 四路均为 0，Trigger-only Hit@5 经 Reranker 从 1.0 降至 0.95，Verification Hit@1 四路均为 1.0；
 - 2026-07-24：复核后确认首轮事实复制型 Canary 不能作为有效水印实验，将其降级为正对照；本地数据已纠正为 20 组三条件查询，Canary 不再复制业务答案，并显式记录 Clean Gold Chunk；

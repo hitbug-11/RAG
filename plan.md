@@ -223,10 +223,12 @@ Query Rewrite 前后对照移至第 3 天，与 Multi-query、Context Compressio
 
 #### 4:00-5:00：消融与可视化
 
-- [ ] 水印位于句首、句中、句尾；
+- [x] 水印位于句首、句中、句尾；
 - [ ] chunk size 为 256/512/1024；
 - [ ] overlap 为 0/64/128；
 - [ ] 使用 PCA 或 UMAP 展示查询和目标文档的位移。
+
+> 2026-07-25：完成严格控制句子集合和字符长度的句首/句中/句尾消融。三个位置各运行 60 条三条件查询与 BM25、Dense、RRF、Qwen3 Reranker 四路全量排名，共 720 条 Trace。BM25 的 60 组 Rank、Score、Gap 在三个位置完全一致；四路 Trigger-only Hit@5 和 Verification Hit@1 在三个位置均为 1.0。Dense 的 Verification Mean Gap 从句首 0.1507 降至句尾 0.1077，Reranker 则从 4.4125 升至 5.3500，说明位置会改变排序余量，但当前强核验信号没有掉出关键 Top-k。结果见 `results/retrieval_ablation.csv` 与 `results/day2_watermark_position_*`，教程见 Day 2 笔记第 6 章。
 
 ### 当日交付物
 

@@ -360,11 +360,11 @@ RAG/
 - 最后更新：2026-07-25
 - 当前计划：`plan.md`
 - 当前阶段：第 2 个学习日的先进检索与水印检索几何
-- 当前任务：固定三条件水印设计，先进行水印位于句首、句中、句尾的消融，再扩展到 Chunk Size、Overlap 与向量位移
-- 已完成任务：已完成透明 Dense、BM25、RRF Hybrid、Qwen3 Reranker、纠正后的 20 组三条件水印实验，以及 FAISS Flat/HNSW/IVF 两层对照；真实 32 Chunk 上三种索引的 Verification Hit@1 均为 1.0
-- 当前交付物：四条透明检索管线；20 个不复制业务答案的 Canary；240 条修正版完整 Trace；FAISS 真实语料验证与 8,192 向量压力集；ANN 明细 CSV、带参数和数据哈希的 JSON 汇总；包含五个独立实验章节的 Day 2 教程
-- 当前薄弱点：Canary 仍占语料 62.5%，触发词与核验口令较显式；真实语料仅 32 个向量，不足以评价 IVF 聚类质量；人工压力集具有利于 IVF 的簇结构；尚未完成水印位置、Chunk Size、Overlap 和向量空间位移消融
-- 下一步：固定水印内容与查询，只改变水印位于句首、句中、句尾，比较四路 Rank、Hit@k 和 Margin；随后再改变 256/512/1024 Chunk 与 0/64/128 Overlap
+- 当前任务：在受控长文档上联合改变 256/512/1024 Chunk Size 与 0/64/128 Overlap，测量水印是否被保留、截断、复制及其四路检索表现
+- 已完成任务：已完成透明 Dense、BM25、RRF Hybrid、Qwen3 Reranker、纠正后的三条件水印实验、FAISS Flat/HNSW/IVF 对照及句首/句中/句尾消融；位置实验中四路 Trigger-only Hit@5 与 Verification Hit@1 均为 1.0
+- 当前交付物：四条透明检索管线；20 个不复制业务答案的 Canary；FAISS 两层对照；720 条位置消融 Trace；`retrieval_ablation.csv`、分组 CSV 与带数据哈希的位置稳定性汇总；包含六个独立实验章节的 Day 2 教程
+- 当前薄弱点：Canary 仍占语料 62.5%，触发词与核验口令较显式；位置消融只覆盖约 77 字符的短 Chunk 和一组固定中性上下文，没有发生截断；尚未完成 Chunk Size、Overlap 和向量空间位移消融
+- 下一步：构造长度足够且水印位置固定的源文档，明确 Size/Overlap 的计量单位，验证切分后目标水印的完整性与副本数，再运行四路 Rank、Hit@k 和 Margin 对照
 - Git 状态：已初始化 `main` 分支并跟踪 `origin/main`；初始学习计划和维护文档已提交并推送
 
 ## 变更记录
@@ -398,3 +398,4 @@ RAG/
 - 2026-07-24：完成修正版三条件水印实验；60 条查询经四路全量排名得到 240 条 Trace，Normal Exact FTR@1 四路均为 0，Trigger-only Hit@5 经 Reranker 从 1.0 降至 0.95，Verification Hit@1 四路均为 1.0；`wm03` 验证了 Reranker 对无答案 Canary 的过滤。
 - 2026-07-24：按教程定位重构 `notes/03-transparent-dense-rag.md`，将原有碎片章节整合为证据传播主线，并保留核心代码及解释、实际运行结果、结果分析和数据流图。
 - 2026-07-25：完成 FAISS Flat/HNSW/IVF 两层对照；真实 32 Chunk 上三种索引结果一致，8,192 向量压力集验证 `efSearch`/`nprobe` 的速度—召回权衡；保留合成簇结构有利于 IVF 的边界说明，当前小语料继续使用 `IndexFlatIP`。
+- 2026-07-25：完成水印句首/句中/句尾受控消融；720 条四路 Trace 显示 BM25 对换序严格不敏感，Dense 与 Reranker 的 Margin 偏好方向不同，但三位置下 Trigger-only Hit@5 与 Verification Hit@1 均保持 1.0；下一实验进入 Chunk Size 与 Overlap。
