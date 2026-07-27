@@ -360,12 +360,12 @@ RAG/
 - 最后更新：2026-07-27
 - 当前计划：`plan.md`
 - 当前阶段：第 2 天已完成；按用户要求暂时提前进行第 4 天 RAG© 补充代码复现，第 3 天任务保留为未完成
-- 当前任务：按用户指定的论文路线，在已完成的 Contriever 检索门控基础上运行 `gpt-4-0613` Generator 与 GPT-4 target-CoT Judge，再计算 Answer Accuracy/Harmfulness、VSR/FPR 和配对 Wilcoxon
-- 已完成任务：完成 RAG© 补充包静态审计、输入一致性测试和 NQ 100 问题检索门控复现；水印问题 target CoT Hit@5 为 0.98，普通问题 target 泄漏率为 0.37，严格门控成功率为 0.32；实现论文 GPT-4 分阶段端到端入口及 12 个离线测试；重建普通/水印各 100 条 GPT Prompt，400 次 Rank/上下文一致性检查错误为 0；这些结果尚不计作 Day 4 完成
-- 当前交付物：补充代码审计说明；固定 Contriever revision、输入 SHA-256 和环境信息的检索入口；论文 Generator/Judge/评测入口；12 个本地/服务器测试；NQ 100 问题共 200 条检索 Trace 和 200 条生成输入
-- 当前薄弱点：官方附件未提供完整 RAG©-O 优化实现；部分结果 JSON 丢失原生成文本；本地和服务器均无 `OPENAI_API_KEY`，且 `gpt-4-0613` 已 deprecated；服务器也没有论文 LLaMA-3(8B) 权重或 HF token，尚无真实 Generator VSR、Judge 稳定性、FPR、Harmfulness、Wilcoxon 和置信区间；论文命题 3.3 的加号与理想验证对及 Table 2 不一致；第 3 天 Query Rewrite/Compression 仍未开展
-- 下一步：在用户提供具备 `gpt-4-0613` 访问权限的环境变量后运行普通/水印生成与 Judge，保存多阶段 Trace 并计算配对检验；随后回到第 3 天编排攻击面对照
-- Git 状态：已初始化 `main` 分支并跟踪 `origin/main`；初始学习计划和维护文档已提交并推送
+- 当前任务：RAG© Qwen3-8B 替代实验的论文对照与分层误差分析已整理为学习笔记；下一实验聚焦独立 Detector 与 Judge Prompt 稳定性，GPT-4 精确路线等待凭据
+- 已完成任务：完成 RAG© 补充包静态审计、NQ 100 问题 Contriever 检索门控、普通/水印各 100 条 Prompt 重建，以及固定 revision 的 Qwen3-8B Generator 和三次 Judge 多数票实验；实测 VSR=0.86、普通 target FPR=0.49、严格配对成功率=0.43、Answer Accuracy=0.82、H=0.18、Wilcoxon `p=6.26×10⁻⁸`；13 个本地/服务器测试通过；该替代结果尚不计作 GPT-4 精确复现或 Day 4 全部完成
+- 当前交付物：RAG© 论文路线复现学习笔记；补充代码审计说明；固定 Contriever/Qwen revision、输入与输出 SHA-256 和环境信息的端到端入口；13 个本地/服务器测试；200 条检索 Trace、200 条生成输入、200 条 Qwen 输出、600 条 Judge Trace 与完整指标；23 篇 RAG 后门/投毒论文 PDF 与 Awesome 专题概览；RAG 知识库版权保护专题 20 篇 Awesome 概览、18 篇已核验 PDF 和 2 篇待补 OpenReview/ARR 稿件链接
+- 当前薄弱点：官方附件未提供完整 RAG©-O 优化实现；本地和服务器均无 `OPENAI_API_KEY`，且 `gpt-4-0613` 已 deprecated；Qwen 替代实验使用同一模型作为 Generator/Judge，普通 target FPR 高达 0.49，人工抽查发现 Judge 假阴性；尚未比较独立 Detector、关键词/Embedding 信号与 Judge Prompt 改写；论文命题 3.3 的加号与理想验证对及 Table 2 不一致；第 3 天 Query Rewrite/Compression 仍未开展
+- 下一步：补充独立 Detector 与 Judge Prompt 稳定性对照，判断 13 条检索后未命中中 Generator 与 Detector 各自贡献；若获得 `gpt-4-0613` 访问权限，再运行同输入精确对照；随后回到第 3 天编排攻击面
+- Git 状态：`main` 跟踪 `origin/main`；RAG© 论文路线检查点 `2914a76` 与 Qwen 替代实验里程碑 `773c0bc` 已推送；本轮学习笔记尚未提交
 
 ## 变更记录
 
@@ -402,4 +402,8 @@ RAG/
 - 2026-07-25：完成字符级 Size × Overlap 九组联合消融和 PCA；2,160 条 Trace 证明完整证据保留率严格限制最终 Reranker Hit@1，长 Chunk 同时降低边界断裂并稀释 Dense 表示；第 2 个学习日全部验收完成，下一阶段进入 LangChain/LangGraph 编排。
 - 2026-07-27：按用户要求提前审计 RAG© 官方补充材料；确认附件是未完整发布的审稿代码快照，RAG©-O 优化实现不完整，原入口混有硬编码和不可审计结果。
 - 2026-07-27：新增独立 Contriever 检索门控复现入口和 5 个测试，在单张 L20 上完成 NQ 100 问题；水印 target Hit@5 为 0.98、普通 target 泄漏率为 0.37、严格门控成功率为 0.32，暂不将 Retriever Hit 当作论文 VSR。
+- 2026-07-27：将 Contriever 检索门控、Qwen3-8B 端到端设置、论文 Table 1/2 对照、分层误差归因与统计检验整理为独立学习笔记，明确 VSR 数值重合不等于 GPT-4 精确复现。
 - 2026-07-27：按用户指定改为论文 GPT-4 路线，新增 BEIR 上下文重建、`gpt-4-0613` Generator、附录 B.3 Judge、断点续跑和 VSR/FPR/H/Wilcoxon 入口；离线测试增至 12 个，完成 200 条 Prompt 和 400 次排名一致性检查。确认命题 3.3 的加号无法区分理想验证对，代码同时保存标准配对差主检验与原公式审计；真实 API 运行等待凭据。
+- 2026-07-27：按用户要求先完成 Qwen3-8B 替代实验；单张 L20 生成 200 条输出，三次 Judge 共 600 条 Trace，VSR=0.86、普通 FPR=0.49、严格配对成功率=0.43、H=0.18，配对 Wilcoxon `p=6.26×10⁻⁸`。分层确认普通 target 检索泄漏 35/37 传递至输出，另有 14 条未检索 target 的普通输出被判 Yes；三次 Judge 199/200 一致，但人工抽查仍发现假阴性。
+- 2026-07-27：完成 RAG 后门、知识库投毒与检索劫持专题调研；从正式论文集与 arXiv 核验并保存 23 篇 PDF，形成区分严格后门、目标投毒、通用投毒和间接 Prompt Injection 的 Awesome 概览，并标注 CCF-A/顶会优先级。
+- 2026-07-27：完成 RAG 知识库版权保护专题调研；按所有权验证、在线防抽取、主动降效、多模态扩展和攻击评测整理 20 篇高价值论文，核验并保存 18 篇 PDF，保留 Rent-a-RAG 与 DORA 的 OpenReview 下载页；Awesome 概览标注 CCF-A/顶会优先级、方法、特点、局限与研究空白，并核正 RAG© 为已撤回的 ICLR 2025 投稿而非 ICML 正式论文。

@@ -33,8 +33,8 @@
 | 项目 | 状态 |
 |---|---|
 | 当前阶段 | 第 2 天已完成；按用户要求提前进行 RAG© 补充代码预复现 |
-| 当前任务 | 按论文 GPT-4 路线完成 RAG© 的 Generator、Detector 与统计验证；第 3 天暂缓但未跳过 |
-| 下一交付物 | 配置 API 访问后生成 RAG© Trace、目标推理检测与 Wilcoxon 统计结果 |
+| 当前任务 | 已完成 RAG© Qwen3-8B 替代实验，分析普通问题泄漏与 Judge 误差；GPT-4 精确路线仍待凭据 |
+| 下一交付物 | 独立 Detector/Prompt 稳定性对照，或配置 API 后运行 GPT-4 精确实验 |
 | 详细计划 | [plan.md](./plan.md) |
 | 研究主线 | RAG 知识库版权保护与所有权验证 |
 
@@ -47,7 +47,7 @@
 | Day 1 | RAG 与 LLM 的完整协同机制 | 已完成 | 透明 Vanilla RAG、30 条 Trace 与故障归因 |
 | Day 2 | 先进检索与水印检索几何 | 已完成 | 四路检索、ANN、水印迁移与完整消融 |
 | Day 3 | LangChain、LangGraph 与先进 RAG | 未开始（暂缓） | LangChain 与 Adaptive RAG |
-| Day 4 | 小规模复现 RAG© | 进行中（检索门控完成） | RAG©-Lite 与统计验证 |
+| Day 4 | 小规模复现 RAG© | 进行中（Qwen 替代实验完成） | RAG©-Lite 与统计验证 |
 | Day 5 | 知识库盗用与去水印攻击 | 未开始 | 攻击矩阵与鲁棒性结果 |
 | Day 6 | RAG 知识库版权保护技术谱系 | 未开始 | Canary 基线与论文矩阵 |
 | Day 7 | 研究问题、预实验与提案 | 未开始 | Research Proposal |
@@ -75,7 +75,11 @@ RAG/
 │   ├── 02-ragc-paper.md      # RAG© 论文笔记
 │   ├── 03-transparent-dense-rag.md # 透明 Dense RAG 教程与实验结果
 │   ├── 04-advanced-retrieval-and-reranking.md # BM25、Hybrid 与重排教程
+│   ├── 05-ragc-qwen-reproduction.md # RAG© 论文设置与 Qwen 替代实验分析
 │   └── assets/               # 笔记引用的小型图片和附件
+├── research/
+│   ├── analysis/             # 专题论文概览与研究分析
+│   └── paper/                # 本地研究论文 PDF
 ├── scripts/
 │   ├── bm25_retriever.py     # 可解释中文 BM25 Retriever
 │   ├── build_chunks.py      # 带字符位置和验证的透明切分器
@@ -128,12 +132,14 @@ RAG/
 - [RAG-WM](https://arxiv.org/abs/2501.05249)
 - [CanaryTrace](https://openreview.net/forum?id=UERyQwQ4zq)
 - [Knowledge-Infused Multi-Bit Watermarking](https://aclanthology.org/2026.findings-acl.1066.pdf)
+- [Awesome RAG Backdoor Attacks](./research/analysis/awesome-rag-backdoor-attacks.md)
+- [Awesome RAG Knowledge Base Copyright Protection](./research/analysis/awesome-rag-knowledge-base-copyright.md)
 
 ## 复现说明
 
 当前已完成透明 Dense RAG、BM25、RRF Hybrid 和 Qwen3 Reranker。纠正后的水印实验使用 20 组普通业务查询、仅增加触发词的控制查询和专用语义验证查询，Canary 不复制业务答案。进一步完成 FAISS Flat/HNSW/IVF、句内位置以及字符级 Size × Overlap 九组消融。联合消融显示完整证据保留率从 0.50 提升到 1.00，并严格限制最终 Reranker Verification Hit@1；PCA 与原始 Cosine 同时揭示长 Chunk 的 Dense 稀释效应。
 
-2026-07-27 开始审计 RAG© 官方补充代码，并用固定 revision 的 Contriever 在单张 L20 上运行全部 100 个 NQ 验证问题。水印问题 target CoT Hit@5 为 0.98，普通问题 target 泄漏率为 0.37，严格双向门控成功率为 0.32。随后按用户指定实现论文的 `Contriever Top-5 → gpt-4-0613 Generator → gpt-4-0613 Judge → VSR/H/配对 Wilcoxon` 分阶段入口；BEIR NQ 已重建普通/水印各 100 条 Prompt，400 次排名一致性检查全部通过。真实 API 运行仍因缺少 `OPENAI_API_KEY` 而未开始。审计、命令、公式不一致和限制见 [RAG© 补充代码复现说明](./scripts/RAG_C/REPRODUCTION.md)。
+2026-07-27 开始审计 RAG© 官方补充代码，并用固定 revision 的 Contriever 在单张 L20 上运行全部 100 个 NQ 验证问题。水印问题 target CoT Hit@5 为 0.98，普通问题 target 泄漏率为 0.37，严格双向门控成功率为 0.32。随后重建普通/水印各 100 条论文 Prompt，并完成固定 revision 的 Qwen3-8B Generator/Judge 替代实验：VSR=0.86、普通 target FPR=0.49、严格配对成功率=0.43、Answer Accuracy=0.82、H=0.18，配对 Wilcoxon `p=6.26×10⁻⁸`。GPT-4 精确路线仍因缺少 `OPENAI_API_KEY` 而未运行。论文设置、结果对比与机制分析见 [RAG© 论文路线复现笔记](./notes/05-ragc-qwen-reproduction.md)，代码审计和运行命令见 [RAG© 补充代码复现说明](./scripts/RAG_C/REPRODUCTION.md)。
 
 教程与基础复现命令见 [透明 Dense RAG：从文档切分到证据约束生成](./notes/03-transparent-dense-rag.md) 和 [先进检索与重排：从 BM25 到 Hybrid RAG](./notes/04-advanced-retrieval-and-reranking.md)。实验持续记录：
 
@@ -155,6 +161,9 @@ RAG/
 
 ## 最近更新
 
+- 2026-07-27：完成 RAG 知识库版权保护专题调研；按事后所有权验证、在线防抽取、被盗后主动降效、多模态扩展和攻击评测五类整理 20 篇高价值论文，18 篇 PDF 已核验保存，另有 2 篇 OpenReview/ARR 稿件保留官方下载页；概览特别核正 RAG© 的撤稿状态，并标注 CCF-A/顶会优先级；
+- 2026-07-27：完成 RAG© Qwen3-8B 替代实验；100 对普通/水印输出、三次 Judge 多数票和完整统计显示 VSR 0.86，但普通 target FPR 高达 0.49，严格配对成功率仅 0.43；50/100 问题时 Wilcoxon 显著，10/20 问题不显著；分层确认 Retriever 泄漏和 target/正常答案语义重叠共同造成误触发；
+- 2026-07-27：完成 RAG 后门、知识库投毒与检索劫持专题调研；核验并保存 23 篇论文 PDF，整理 CCF-A/顶会优先级、威胁模型、方法特点、研究脉络及其与知识库版权水印的关系；
 - 2026-07-27：按论文 GPT-4 路线新增 RAG© 端到端入口，支持 BEIR NQ 上下文重建、API 断点续跑、附录 B.3 Judge、VSR/FPR/H/Answer Accuracy、95% 区间和配对 Wilcoxon；发现命题 3.3 的加号与理想验证行为矛盾，结果将同时保留标准配对差主检验和原公式审计；真实 API 运行等待凭据；
 - 2026-07-27：审计 RAG© 补充代码并新增可审计的 Contriever 检索门控入口；单张 L20 完成 NQ 全部 100 个验证问题，水印问题 target CoT Hit@5 为 0.98，普通问题 target 泄漏率为 0.37，严格门控成功率为 0.32；明确该结果不等同于 Generator VSR 或 Wilcoxon 所有权验证；
 - 2026-07-25：完成字符级 256/512/1024 Size × 0/64/128 Overlap 九组边界压力实验与 PCA；2,160 条四路 Trace 显示完整证据保留率从 0.50 提升到 1.00，并严格限制最终 Reranker Hit@1；第 2 个学习日全部完成；

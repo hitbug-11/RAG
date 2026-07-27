@@ -25,9 +25,13 @@ cache/
 logs/
 results/*.log
 .trash/
+.Rhistory
+results/ragc_reproduction/nq_contriever_retrieval_gate.json
 
 # Models and large generated artifacts
 models/
+!scripts/RAG_C/src/models/
+!scripts/RAG_C/src/models/*.py
 checkpoints/
 *.safetensors
 *.bin
