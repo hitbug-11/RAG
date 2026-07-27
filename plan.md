@@ -321,26 +321,26 @@ Query Rewrite 前后对照移至第 3 天，与 Multi-query、Context Compressio
 
 复现所提供论文的核心机制，并建立可靠的所有权验证评价流程。
 
-> 2026-07-27 用户指定提前审计并运行论文补充代码，因此暂时从第 3 天切入第 4 天预实验；第 3 天任务不作完成标记。已新增独立的 Contriever 检索门控入口，在单张 L20 上完成 NQ 全部 100 个验证问题：水印问题 target CoT Hit@5 为 0.98，但普通问题 target 泄漏率为 0.37，严格双向门控成功率为 0.32。用户进一步指定采用论文的 GPT-4 路线，已实现 `Contriever Top-5 → gpt-4-0613 Generator → gpt-4-0613 Judge → VSR/H/配对 Wilcoxon` 的分阶段、可断点续跑入口和 12 个离线测试。BEIR NQ 语料已通过 SHA-256 校验并生成普通/水印各 100 条 Prompt，400 次 Rank/上下文一致性检查错误为 0。目前本地与服务器没有 `OPENAI_API_KEY`，服务器也没有论文 LLaMA-3(8B) 权重或 HF token，尚未产生真实端到端结果。论文命题 3.3 的加号公式与理想验证对及 Table 2 不一致，代码以标准配对差作为主检验并保留原公式审计。所有要求真实生成或评测结果的任务继续保持未勾选。代码和说明见 `scripts/RAG_C/reproduce_retrieval.py`、`scripts/RAG_C/reproduce_end_to_end.py`、`scripts/RAG_C/REPRODUCTION.md`。
+> 2026-07-27 用户指定提前审计并运行论文补充代码，因此暂时从第 3 天切入第 4 天预实验；第 3 天任务不作完成标记。Contriever 检索门控已完成 NQ 100 问题，水印 target Hit@5 为 0.98、普通 target 泄漏率为 0.37、严格门控成功率为 0.32。因无 `OPENAI_API_KEY`，用户允许先运行固定 revision 的 Qwen3-8B 替代实验：普通/水印各 100 条输出，Qwen Judge 重复三次并多数票。实测 VSR=0.86、普通 target FPR=0.49、严格配对成功率=0.43、Answer Accuracy=0.82、H=0.18，配对 Wilcoxon `p=6.26×10⁻⁸`；10/20 问题尚不显著，50/100 问题显著。水印 target 检索后生成/判定命中 85/98，普通 target 检索后泄漏 35/37，另有 14 条未检索 target 的普通输出被判 Yes。三次 Judge 有 199/200 一致，但人工抽查发现明确假阴性，因此尚不能把所有下游失败归因于 Generator。代码和说明见 `scripts/RAG_C/reproduce_retrieval.py`、`scripts/RAG_C/reproduce_end_to_end.py`、`scripts/RAG_C/run_qwen_surrogate_server.sh`、`scripts/RAG_C/REPRODUCTION.md`。
 
 ### 时间安排
 
 #### 0:00-1:00：数据准备
 
-- [ ] 从 NQ 或 HotpotQA 选择 20-50 个验证问题；
-- [ ] 为每个问题准备正确答案；
+- [x] 从 NQ 选择 100 个验证问题；
+- [x] 为每个问题准备正确答案；
 - [ ] 生成两个正确但内容不同的解释；
-- [ ] 指定 target CoT 和 non-target CoT；
-- [ ] 生成 2-10 个词的罕见、语义无害水印短语。
+- [x] 指定 target CoT 和 non-target CoT；
+- [x] 生成 2-10 个词的罕见、语义无害水印短语。
 
 #### 1:00-3:00：实现 RAG©-Lite
 
 优先复现成本较低的 RAG©-L：
 
-- [ ] 水印问题应检索 target CoT；
-- [ ] 正常问题应检索 non-target CoT；
-- [ ] 每个验证问题注入两条目标文本；
-- [ ] 分别测试 Top-k 为 1/3/5/10；
+- [x] 测试水印问题检索 target CoT，Hit@5 为 0.98；
+- [x] 测试正常问题检索 non-target CoT，Hit@5 为 0.61；
+- [x] 每个验证问题注入两条目标文本；
+- [x] 分别测试 Top-k 为 1/3/5/10；
 - [ ] 保持最终答案正确。
 
 #### 3:00-4:00：目标推理检测
@@ -351,19 +351,19 @@ Query Rewrite 前后对照移至第 3 天，与 Multi-query、Context Compressio
 - [ ] 说明显式 CoT、推理摘要和隐藏推理对黑盒验证的影响；
 - [ ] 关键词和实体覆盖率；
 - [ ] Sentence Embedding 相似度；
-- [ ] LLM Judge；
-- [ ] 对 LLM Judge 进行人工抽样复核；
+- [x] Qwen LLM Judge，三次多数票；
+- [x] 对 LLM Judge 进行分层人工抽样复核；
 - [ ] 改变 Judge Prompt，检查稳定性。
 
 #### 4:00-5:00：统计验证
 
-- [ ] VSR/TPR；
-- [ ] FPR；
-- [ ] Harmfulness；
-- [ ] Answer Accuracy；
-- [ ] 配对 Wilcoxon 检验；
-- [ ] 比较 10/20/50 个验证问题时的统计功效；
-- [ ] 保存置信区间，不只报告 p-value。
+- [x] VSR/TPR；
+- [x] FPR；
+- [x] Harmfulness；
+- [x] Answer Accuracy；
+- [x] 配对 Wilcoxon 检验；
+- [x] 比较 10/20/50/100 个验证问题时的统计功效；
+- [x] 保存 95% Wilson 区间，不只报告 p-value。
 
 ### 当日交付物
 

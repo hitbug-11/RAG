@@ -82,21 +82,20 @@ HF_HUB_OFFLINE=1 bash scripts/run_server_python.sh \
 
 完整逐问题结果见 [`nq_contriever_retrieval_gate_100.json`](../../results/ragc_reproduction/nq_contriever_retrieval_gate_100.json)。
 
-## 尚未完成
+## GPT 精确路线尚未完成
 
-- 使用固定 Generator 重新生成普通/水印问题的输出；
 - 比较 target CoT、non-target CoT 和最终输出之间的语义信息；
-- Answer Accuracy 与 Harmfulness；
-- Judge Prompt 稳定性和人工抽样复核；
-- 配对 Wilcoxon 检验、FPR、效应量与置信区间；
+- 使用论文 `gpt-4-0613` Generator/Judge 生成精确对照；
+- 独立模型 Judge、Prompt 改写和更完整的人工复核；
 - RAG©-O 优化代码的重建与验证。
 
-在这些步骤完成前，本结果应称为“检索门控复现”，不能称为论文端到端结果复现。
+当前 Qwen 实验应称为“论文管线的 Qwen 替代实验”，不能称为 GPT-4
+端到端结果复现。
 
 ## 论文端到端路线
 
-用户已指定继续采用论文路线，不以 Qwen 或其他本地模型替代。新增
-`reproduce_end_to_end.py`，固定以下默认配置：
+用户首先指定采用论文路线，随后允许先运行服务器 Qwen 替代实验。新增
+`reproduce_end_to_end.py`，其中论文精确路线仍固定以下默认配置：
 
 - Contriever Top-5；
 - Generator：`gpt-4-0613`；
@@ -173,6 +172,106 @@ p-value 不一致。代码因此把可执行主检验实现为标准配对差
 截至 2026-07-27，本地和服务器均未配置 `OPENAI_API_KEY`，因此尚未发送
 真实 GPT 请求。`gpt-4-0613` 在当前 OpenAI 模型文档中已标记为
 deprecated；是否仍可调用取决于具体项目权限。在获得具备访问权限的
-环境变量前，只完成输入准备和 12 个离线流程测试，不能产生或声称论文
+环境变量前，只完成输入准备和 13 个离线流程测试，不能产生或声称论文
 VSR。服务器也没有论文 LLaMA-3(8B) 权重或 Hugging Face token，因此
 当前不存在无需变更模型即可启动的论文内替代 Generator。
+
+## Qwen3-8B 替代实验
+
+在保持 NQ 问题、Contriever Top-5、论文 Generator Prompt、target-CoT
+Judge Prompt 和统计方法不变的前提下，只替换 Generator 与 Judge：
+
+- 模型：`Qwen/Qwen3-8B`；
+- revision：`b968826d9c46dd6066d109eabc6255188de91218`；
+- temperature：0.1，seed：100；
+- thinking：关闭；
+- Generator 上限：512 tokens；
+- Judge 上限：10 tokens，seed 100/101/102 重复三次并多数票；
+- 硬件：单张 NVIDIA L20，BF16；
+- 问题：100 个普通问题及其 100 个水印版本。
+
+可一键断点续跑：
+
+```bash
+nohup bash scripts/RAG_C/run_qwen_surrogate_server.sh \
+  > results/ragc_reproduction/nq_qwen3_8b_pipeline.log 2>&1 &
+```
+
+### 端到端结果
+
+| 指标 | 结果 | 95% Wilson 区间 |
+|---|---:|---:|
+| 水印问题 VSR | 0.86 | [0.779, 0.915] |
+| 普通问题 target FPR | 0.49 | [0.394, 0.587] |
+| 严格配对成功率（水印 Yes、普通 No） | 0.43 | [0.337, 0.528] |
+| 水印问题 Answer Accuracy | 0.82 | [0.733, 0.883] |
+| Harmfulness | 0.18 | [0.117, 0.267] |
+| 普通问题 Answer Accuracy | 0.73 | - |
+
+配对 Judge 结果为：
+
+| 普通问题 | 水印问题 | 数量 |
+|---|---|---:|
+| No | Yes | 43 |
+| Yes | Yes | 43 |
+| Yes | No | 6 |
+| No | No | 8 |
+
+单侧配对 Wilcoxon 检验使用可执行的
+`C(X′)-C(X)>0`，得到 `p=6.26×10⁻⁸<0.01`。不同问题数的前缀检验为：
+
+| 问题数 | p-value | α=0.01 下显著 |
+|---:|---:|:---:|
+| 10 | 0.1875 | 否 |
+| 20 | 0.0658 | 否 |
+| 50 | 2.08×10⁻⁴ | 是 |
+| 100 | 6.26×10⁻⁸ | 是 |
+
+### 分层归因
+
+```text
+水印问题 target 检索成功：98/100
+├── Judge 判定包含 target：85
+└── Judge 判定不包含 target：13
+
+水印问题 target 未检索：2/100
+└── Judge 判定包含 target：1
+
+普通问题 target 检索成功：37/100
+├── Judge 判定包含 target：35
+└── Judge 判定不包含 target：2
+
+普通问题 target 未检索：63/100
+└── Judge 判定包含 target：14
+```
+
+这说明高 FPR 有两个来源：
+
+1. Retriever 泄漏几乎会直接传递到 Generator：普通问题检索到 target
+   后的生成命中率为 35/37；
+2. 即使未检索 target，也有 14 个普通回答被 Judge 判定包含 target，
+   因为 target CoT 与正常正确答案及常规解释共享大量语义信息。
+
+三次 Judge 中 199/200 的二值结果完全一致；唯一波动是普通问题
+`test254`（Yes/Yes/No）。分层人工抽查还发现 Judge 假阴性：例如
+`test327` 的水印输出明确复述 Tiber River 及其供水、灌溉用途，却被
+判定为 No。因此 13 条“target 已检索但未生成”不能全部归因于
+Generator，仍混有 Detector 误差。
+
+Qwen 得到的 VSR 恰好也是 0.86，但这不等于复现论文 GPT-4 结果：模型、
+Judge、自一致性偏差和输出上限均不同；同时 0.49 FPR 与仅 0.43 的严格
+配对成功率揭示了单报 VSR 会掩盖的普通问题泄漏。
+
+### 运行成本与产物
+
+- Generator：总计 1,218.4 秒，平均 6.09 秒/条；
+- Completion tokens：41,616，平均 208.1/条，最长 473，零截断；
+- 峰值显存：15.61 GiB；
+- 三轮 Judge：总计约 89.9 秒；
+- 13 个本地/服务器测试通过。
+
+完整结果：
+
+- [`nq_qwen3_8b_generations.jsonl`](../../results/ragc_reproduction/nq_qwen3_8b_generations.jsonl)
+- [`nq_qwen3_8b_judgments.jsonl`](../../results/ragc_reproduction/nq_qwen3_8b_judgments.jsonl)
+- [`nq_qwen3_8b_metrics.json`](../../results/ragc_reproduction/nq_qwen3_8b_metrics.json)

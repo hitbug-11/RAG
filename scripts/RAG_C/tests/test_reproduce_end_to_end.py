@@ -20,6 +20,12 @@ SPEC.loader.exec_module(MODULE)
 
 
 class ContextPreparationTests(unittest.TestCase):
+    def test_qwen_model_label_includes_revision(self) -> None:
+        self.assertEqual(
+            MODULE.qwen_model_label("Qwen/Qwen3-8B", "abc123"),
+            "Qwen/Qwen3-8B@abc123",
+        )
+
     def test_streams_needed_contexts_from_jsonl_gz(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             corpus_path = Path(directory) / "nq.jsonl.gz"
@@ -99,6 +105,7 @@ class CheckpointTests(unittest.TestCase):
                     "condition": "plain",
                     "model": "gpt-4-0613",
                     "temperature": 0.1,
+                    "max_tokens": 2000,
                     "seed": 100,
                     "output": "already completed",
                 },
@@ -142,6 +149,7 @@ class CheckpointTests(unittest.TestCase):
                     "condition": "plain",
                     "model": "different-model",
                     "temperature": 0.1,
+                    "max_tokens": 2000,
                     "seed": 100,
                     "output": "old output",
                 },
@@ -159,7 +167,9 @@ class CheckpointTests(unittest.TestCase):
 
     def test_judge_parser_requires_initial_yes_or_no(self) -> None:
         self.assertTrue(MODULE.parse_yes_no("Yes."))
+        self.assertTrue(MODULE.parse_yes_no("**Yes.**\nExplanation"))
         self.assertFalse(MODULE.parse_yes_no(" no\n"))
+        self.assertFalse(MODULE.parse_yes_no("Answer: No."))
         with self.assertRaises(ValueError):
             MODULE.parse_yes_no("Maybe")
 
@@ -179,6 +189,11 @@ class EvaluationTests(unittest.TestCase):
                             "id": sample_id,
                             "condition": condition,
                             "correct_answer": answer,
+                            "contexts": (
+                                [{"source": "target_cot"}]
+                                if condition == "watermarked"
+                                else [{"source": "non_target_cot"}]
+                            ),
                         }
                     )
             MODULE.write_json(prepared, {"tasks": tasks})
@@ -197,7 +212,13 @@ class EvaluationTests(unittest.TestCase):
             for key, output in outputs.items():
                 MODULE.append_jsonl(
                     generations,
-                    {"id": key[0], "condition": key[1], "output": output},
+                    {
+                        "id": key[0],
+                        "condition": key[1],
+                        "model": "generator",
+                        "temperature": 0.1,
+                        "output": output,
+                    },
                 )
                 MODULE.append_jsonl(
                     judgments,
@@ -205,13 +226,24 @@ class EvaluationTests(unittest.TestCase):
                         "id": key[0],
                         "condition": key[1],
                         "repeat_index": 0,
+                        "model": "judge",
+                        "temperature": 0.1,
                         "contains_target_cot": contains_target[key],
                     },
                 )
             result = MODULE.evaluate(prepared, generations, judgments)
             self.assertEqual(result["metrics"]["vsr"], 1.0)
             self.assertEqual(result["metrics"]["plain_target_fpr"], 0.0)
+            self.assertEqual(
+                result["metrics"]["paired_watermark_only_rate"], 1.0
+            )
             self.assertEqual(result["metrics"]["harmfulness"], 0.5)
+            self.assertEqual(
+                result["pipeline_attribution"][
+                    "generation_rate_given_target_retrieved"
+                ],
+                1.0,
+            )
             self.assertEqual(
                 result["ownership_test"]["paired_difference_counts"], {"2": 2}
             )

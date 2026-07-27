@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Run the released RAG©-L artifacts through the paper's GPT-4 pipeline.
+"""Run released RAG©-L artifacts through the paper or Qwen surrogate pipeline.
 
 The stages are deliberately separate:
 
 1. ``prepare`` reconstructs exact Contriever Top-k contexts from BEIR NQ.
-2. ``generate`` queries the paper's generator through Chat Completions.
-3. ``judge`` applies the paper's GPT-4 target-CoT identification prompt.
+2. ``generate``/``generate-qwen`` run the selected generator.
+3. ``judge``/``judge-qwen`` apply the paper's target-CoT identification prompt.
 4. ``evaluate`` computes VSR, answer accuracy/harmfulness, and the paired
    one-sided Wilcoxon ownership test.
 
@@ -46,6 +46,8 @@ PAPER_TEMPERATURE = 0.1
 PAPER_SEED = 100
 PAPER_TOP_K = 5
 CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions"
+QWEN3_8B_MODEL = "Qwen/Qwen3-8B"
+QWEN3_8B_REVISION = "b968826d9c46dd6066d109eabc6255188de91218"
 
 GENERATOR_TEMPLATE = (
     " You are a helpful assistant, below is a query from a user and some "
@@ -393,6 +395,121 @@ class ChatCompletionsClient:
         raise AssertionError("unreachable")
 
 
+class QwenChatClient:
+    """Single-GPU, offline Qwen chat backend for a labeled surrogate run."""
+
+    def __init__(
+        self,
+        model_id: str,
+        revision: str,
+        *,
+        device: str = "cuda:0",
+        enable_thinking: bool = False,
+    ) -> None:
+        import torch
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+
+        if device != "cuda:0":
+            raise ValueError("The reproduction runner supports only cuda:0")
+        if not torch.cuda.is_available() or torch.cuda.device_count() != 1:
+            raise RuntimeError(
+                "Exactly one visible CUDA GPU is required; set "
+                "CUDA_VISIBLE_DEVICES=0"
+            )
+        self.model_id = model_id
+        self.revision = revision
+        self.device = device
+        self.enable_thinking = enable_thinking
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            model_id,
+            revision=revision,
+            local_files_only=True,
+        )
+        self.model = AutoModelForCausalLM.from_pretrained(
+            model_id,
+            revision=revision,
+            dtype=torch.bfloat16,
+            device_map={"": 0},
+            low_cpu_mem_usage=True,
+            local_files_only=True,
+        )
+        self.model.eval()
+
+    def query(
+        self,
+        prompt: str,
+        model: str,
+        temperature: float,
+        max_tokens: int,
+        seed: int,
+    ) -> tuple[str, dict[str, Any]]:
+        import torch
+
+        expected_label = qwen_model_label(self.model_id, self.revision)
+        if model != expected_label:
+            raise ValueError(
+                f"Qwen model label mismatch: expected {expected_label}, got {model}"
+            )
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        rendered_prompt = self.tokenizer.apply_chat_template(
+            [{"role": "user", "content": prompt}],
+            tokenize=False,
+            add_generation_prompt=True,
+            enable_thinking=self.enable_thinking,
+        )
+        model_inputs = self.tokenizer(
+            [rendered_prompt], return_tensors="pt"
+        ).to(self.model.device)
+        input_tokens = int(model_inputs.input_ids.shape[1])
+        generation_arguments: dict[str, Any] = {
+            "max_new_tokens": max_tokens,
+            "do_sample": temperature > 0,
+            "use_cache": True,
+            "pad_token_id": self.tokenizer.eos_token_id,
+        }
+        if temperature > 0:
+            generation_arguments.update(
+                {"temperature": temperature, "top_p": 1.0}
+            )
+
+        torch.cuda.reset_peak_memory_stats()
+        torch.cuda.synchronize()
+        started = time.perf_counter()
+        with torch.inference_mode():
+            generated_ids = self.model.generate(
+                **model_inputs,
+                **generation_arguments,
+            )
+        torch.cuda.synchronize()
+        elapsed = time.perf_counter() - started
+        output_ids = generated_ids[0, input_tokens:]
+        output = self.tokenizer.decode(
+            output_ids, skip_special_tokens=True
+        ).strip()
+        return output, {
+            "backend": "local_transformers",
+            "served_model": self.model_id,
+            "revision": self.revision,
+            "enable_thinking": self.enable_thinking,
+            "dtype": "bfloat16",
+            "device": self.device,
+            "usage": {
+                "prompt_tokens": input_tokens,
+                "completion_tokens": int(output_ids.shape[0]),
+                "total_tokens": input_tokens + int(output_ids.shape[0]),
+            },
+            "generation_seconds": round(elapsed, 3),
+            "peak_gpu_memory_gib": round(
+                torch.cuda.max_memory_allocated() / (1024**3), 3
+            ),
+        }
+
+
+def qwen_model_label(model_id: str, revision: str) -> str:
+    return f"{model_id}@{revision}"
+
+
 def require_api_key(environment_variable: str) -> str:
     api_key = os.environ.get(environment_variable, "")
     if not api_key:
@@ -428,6 +545,7 @@ def run_generation(
         expected = {
             "model": model,
             "temperature": temperature,
+            "max_tokens": max_tokens,
             "seed": seed,
         }
         actual = {field: row.get(field) for field in expected}
@@ -450,6 +568,7 @@ def run_generation(
                 "condition": task["condition"],
                 "model": model,
                 "temperature": temperature,
+                "max_tokens": max_tokens,
                 "seed": seed,
                 "output": output,
                 "response_metadata": response_metadata,
@@ -458,8 +577,12 @@ def run_generation(
         print(f"[generate {index}/{len(tasks)}] {task['id']} {task['condition']}")
 
 
-YES_PATTERN = re.compile(r"^\s*yes\b", re.IGNORECASE)
-NO_PATTERN = re.compile(r"^\s*no\b", re.IGNORECASE)
+YES_PATTERN = re.compile(
+    r"^\s*(?:[*_`#>]+\s*)*(?:answer\s*:\s*)?yes\b", re.IGNORECASE
+)
+NO_PATTERN = re.compile(
+    r"^\s*(?:[*_`#>]+\s*)*(?:answer\s*:\s*)?no\b", re.IGNORECASE
+)
 
 
 def parse_yes_no(output: str) -> bool:
@@ -506,6 +629,7 @@ def run_judging(
         expected = {
             "model": model,
             "temperature": temperature,
+            "max_tokens": max_tokens,
             "seed": seed + key[2],
         }
         actual = {field: row.get(field) for field in expected}
@@ -541,6 +665,7 @@ def run_judging(
                     "repeat_index": repeat_index,
                     "model": model,
                     "temperature": temperature,
+                    "max_tokens": max_tokens,
                     "seed": seed + repeat_index,
                     "contains_target_cot": contains_target,
                     "raw_judgment": raw_judgment,
@@ -662,9 +787,10 @@ def evaluate(
         if key in generations:
             raise ValueError(f"Duplicate generation key: {key}")
         generations[key] = row
+    judgment_rows = load_jsonl(judgments_path)
     judgment_groups: dict[tuple[str, str], list[bool]] = {}
     judgment_keys: set[tuple[str, str, int]] = set()
-    for row in load_jsonl(judgments_path):
+    for row in judgment_rows:
         key = (row["id"], row["condition"])
         repeat_key = (*key, int(row["repeat_index"]))
         if repeat_key in judgment_keys:
@@ -689,10 +815,15 @@ def evaluate(
     for key, task in tasks.items():
         generation = generations[key]
         contains_target = majority_judgment(judgment_groups[key])
+        context_sources = {
+            context["source"] for context in task.get("contexts", [])
+        }
         condition_rows[key[1]].append(
             {
                 "id": key[0],
                 "contains_target_cot": contains_target,
+                "target_cot_retrieved": "target_cot" in context_sources,
+                "non_target_cot_retrieved": "non_target_cot" in context_sources,
                 "answer_exact_substring": paper_answer_present(
                     task["correct_answer"], generation["output"]
                 ),
@@ -720,8 +851,18 @@ def evaluate(
             {
                 "id": sample_id,
                 "plain_contains_target_cot": plain["contains_target_cot"],
+                "plain_target_cot_retrieved": plain["target_cot_retrieved"],
+                "plain_non_target_cot_retrieved": plain[
+                    "non_target_cot_retrieved"
+                ],
                 "watermarked_contains_target_cot": watermarked[
                     "contains_target_cot"
+                ],
+                "watermarked_target_cot_retrieved": watermarked[
+                    "target_cot_retrieved"
+                ],
+                "watermarked_non_target_cot_retrieved": watermarked[
+                    "non_target_cot_retrieved"
                 ],
                 "plain_answer_exact_substring": plain[
                     "answer_exact_substring"
@@ -751,15 +892,138 @@ def evaluate(
     plain_correct = sum(
         row["plain_answer_exact_substring"] for row in pair_rows
     )
+    target_retrieved = sum(
+        row["watermarked_target_cot_retrieved"] for row in pair_rows
+    )
+    target_generated_when_retrieved = sum(
+        row["watermarked_target_cot_retrieved"]
+        and row["watermarked_contains_target_cot"]
+        for row in pair_rows
+    )
+    target_generated_without_retrieval = sum(
+        not row["watermarked_target_cot_retrieved"]
+        and row["watermarked_contains_target_cot"]
+        for row in pair_rows
+    )
+    plain_target_retrieved = sum(
+        row["plain_target_cot_retrieved"] for row in pair_rows
+    )
+    plain_target_generated_when_retrieved = sum(
+        row["plain_target_cot_retrieved"]
+        and row["plain_contains_target_cot"]
+        for row in pair_rows
+    )
+    plain_target_generated_without_retrieval = sum(
+        not row["plain_target_cot_retrieved"]
+        and row["plain_contains_target_cot"]
+        for row in pair_rows
+    )
+    watermark_only_hits = sum(
+        row["watermarked_contains_target_cot"]
+        and not row["plain_contains_target_cot"]
+        for row in pair_rows
+    )
+    paired_outcomes = Counter(
+        (
+            f"plain_{'yes' if row['plain_contains_target_cot'] else 'no'}"
+            f"__watermarked_"
+            f"{'yes' if row['watermarked_contains_target_cot'] else 'no'}"
+        )
+        for row in pair_rows
+    )
+    answer_accuracy_interval = wilson_interval(watermarked_correct, total)
+    harmfulness_interval = [
+        1 - answer_accuracy_interval[1],
+        1 - answer_accuracy_interval[0],
+    ]
     prefix_tests = {
         str(size): paired_wilcoxon(pair_rows[:size])
         for size in (10, 20, 50, 100)
         if size <= total
     }
+    generation_seconds = [
+        row.get("response_metadata", {}).get("generation_seconds")
+        for row in generations.values()
+    ]
+    generation_seconds = [
+        float(value) for value in generation_seconds if value is not None
+    ]
+    completion_tokens = [
+        row.get("response_metadata", {}).get("usage", {}).get(
+            "completion_tokens"
+        )
+        for row in generations.values()
+    ]
+    completion_tokens = [
+        int(value) for value in completion_tokens if value is not None
+    ]
+    peak_gpu_memory = [
+        row.get("response_metadata", {}).get("peak_gpu_memory_gib")
+        for row in generations.values()
+    ]
+    peak_gpu_memory = [
+        float(value) for value in peak_gpu_memory if value is not None
+    ]
+    judge_seconds = [
+        row.get("response_metadata", {}).get("generation_seconds")
+        for row in judgment_rows
+    ]
+    judge_seconds = [
+        float(value) for value in judge_seconds if value is not None
+    ]
     return {
         "status": "completed",
-        "scope": "paper RAG©-L end-to-end generator and GPT-4 detector metrics",
+        "scope": (
+            "RAG©-L end-to-end metrics; generator and detector identities "
+            "are recorded below"
+        ),
         "question_count": total,
+        "configuration": {
+            "generation_models": dict(
+                sorted(Counter(row["model"] for row in generations.values()).items())
+            ),
+            "judge_models": dict(
+                sorted(Counter(row["model"] for row in judgment_rows).items())
+            ),
+            "generation_temperatures": sorted(
+                {row["temperature"] for row in generations.values()}
+            ),
+            "judge_temperatures": sorted(
+                {row["temperature"] for row in judgment_rows}
+            ),
+            "judge_repeats_per_task": sorted(
+                {len(values) for values in judgment_groups.values()}
+            ),
+            "prepared_input_sha256": sha256_file(prepared_path),
+            "generations_sha256": sha256_file(generations_path),
+            "judgments_sha256": sha256_file(judgments_path),
+        },
+        "runtime": {
+            "generation_seconds_total": (
+                round(sum(generation_seconds), 3)
+                if generation_seconds
+                else None
+            ),
+            "generation_seconds_mean": (
+                round(sum(generation_seconds) / len(generation_seconds), 3)
+                if generation_seconds
+                else None
+            ),
+            "completion_tokens_total": (
+                sum(completion_tokens) if completion_tokens else None
+            ),
+            "completion_tokens_mean": (
+                round(sum(completion_tokens) / len(completion_tokens), 3)
+                if completion_tokens
+                else None
+            ),
+            "peak_gpu_memory_gib": (
+                max(peak_gpu_memory) if peak_gpu_memory else None
+            ),
+            "judge_seconds_total": (
+                round(sum(judge_seconds), 3) if judge_seconds else None
+            ),
+        },
         "metrics": {
             "vsr": target_hits / total,
             "vsr_wilson_95": wilson_interval(target_hits, total),
@@ -767,12 +1031,76 @@ def evaluate(
             "plain_target_fpr_wilson_95": wilson_interval(
                 false_positives, total
             ),
-            "watermarked_answer_accuracy": watermarked_correct / total,
-            "watermarked_answer_accuracy_wilson_95": wilson_interval(
-                watermarked_correct, total
+            "paired_watermark_only_rate": watermark_only_hits / total,
+            "paired_watermark_only_rate_wilson_95": wilson_interval(
+                watermark_only_hits, total
             ),
+            "watermarked_answer_accuracy": watermarked_correct / total,
+            "watermarked_answer_accuracy_wilson_95": answer_accuracy_interval,
             "harmfulness": 1 - watermarked_correct / total,
+            "harmfulness_wilson_95": harmfulness_interval,
             "plain_answer_accuracy": plain_correct / total,
+        },
+        "pipeline_attribution": {
+            "watermarked_target_retrieved": target_retrieved,
+            "watermarked_target_retrieval_rate": target_retrieved / total,
+            "target_generated_when_retrieved": target_generated_when_retrieved,
+            "generation_rate_given_target_retrieved": (
+                target_generated_when_retrieved / target_retrieved
+                if target_retrieved
+                else None
+            ),
+            "generation_misses_after_target_retrieval": (
+                target_retrieved - target_generated_when_retrieved
+            ),
+            "target_generated_without_retrieval": (
+                target_generated_without_retrieval
+            ),
+            "plain_target_retrieved": plain_target_retrieved,
+            "plain_target_generated_when_retrieved": (
+                plain_target_generated_when_retrieved
+            ),
+            "plain_target_generated_without_retrieval": (
+                plain_target_generated_without_retrieval
+            ),
+            "plain_generation_rate_given_target_retrieved": (
+                plain_target_generated_when_retrieved / plain_target_retrieved
+                if plain_target_retrieved
+                else None
+            ),
+            "paired_judge_outcomes": dict(sorted(paired_outcomes.items())),
+        },
+        "failure_analysis": {
+            "watermarked_retrieved_but_not_generated_ids": [
+                row["id"]
+                for row in pair_rows
+                if row["watermarked_target_cot_retrieved"]
+                and not row["watermarked_contains_target_cot"]
+            ],
+            "watermarked_generated_without_retrieval_ids": [
+                row["id"]
+                for row in pair_rows
+                if not row["watermarked_target_cot_retrieved"]
+                and row["watermarked_contains_target_cot"]
+            ],
+            "plain_generated_without_retrieval_ids": [
+                row["id"]
+                for row in pair_rows
+                if not row["plain_target_cot_retrieved"]
+                and row["plain_contains_target_cot"]
+            ],
+            "positive_discordant_pair_ids": [
+                row["id"]
+                for row in pair_rows
+                if row["watermarked_contains_target_cot"]
+                and not row["plain_contains_target_cot"]
+            ],
+            "negative_discordant_pair_ids": [
+                row["id"]
+                for row in pair_rows
+                if not row["watermarked_contains_target_cot"]
+                and row["plain_contains_target_cot"]
+            ],
         },
         "answer_match": {
             "primary": "case-sensitive substring, matching released main.py",
@@ -797,7 +1125,7 @@ def evaluate(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Reproduce the paper's RAG©-L GPT-4 evaluation route."
+        description="Run the RAG©-L paper route or a labeled Qwen surrogate."
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -842,6 +1170,30 @@ def parse_args() -> argparse.Namespace:
     judge.add_argument("--api-key-env", default="OPENAI_API_KEY")
     judge.add_argument("--endpoint", default=CHAT_COMPLETIONS_URL)
     judge.add_argument("--limit", type=int)
+
+    generate_qwen = subparsers.add_parser("generate-qwen")
+    generate_qwen.add_argument("--input", type=Path, required=True)
+    generate_qwen.add_argument("--output", type=Path, required=True)
+    generate_qwen.add_argument("--model-id", default=QWEN3_8B_MODEL)
+    generate_qwen.add_argument("--revision", default=QWEN3_8B_REVISION)
+    generate_qwen.add_argument("--temperature", type=float, default=0.1)
+    generate_qwen.add_argument("--max-tokens", type=int, default=256)
+    generate_qwen.add_argument("--seed", type=int, default=PAPER_SEED)
+    generate_qwen.add_argument("--device", default="cuda:0")
+    generate_qwen.add_argument("--limit", type=int)
+
+    judge_qwen = subparsers.add_parser("judge-qwen")
+    judge_qwen.add_argument("--input", type=Path, required=True)
+    judge_qwen.add_argument("--generations", type=Path, required=True)
+    judge_qwen.add_argument("--output", type=Path, required=True)
+    judge_qwen.add_argument("--model-id", default=QWEN3_8B_MODEL)
+    judge_qwen.add_argument("--revision", default=QWEN3_8B_REVISION)
+    judge_qwen.add_argument("--temperature", type=float, default=0.1)
+    judge_qwen.add_argument("--max-tokens", type=int, default=10)
+    judge_qwen.add_argument("--seed", type=int, default=PAPER_SEED)
+    judge_qwen.add_argument("--repeats", type=int, default=1)
+    judge_qwen.add_argument("--device", default="cuda:0")
+    judge_qwen.add_argument("--limit", type=int)
 
     evaluate_parser = subparsers.add_parser("evaluate")
     evaluate_parser.add_argument("--input", type=Path, required=True)
@@ -897,6 +1249,40 @@ def main() -> None:
                 args.output,
                 client,
                 args.model,
+                args.temperature,
+                args.max_tokens,
+                args.seed,
+                args.repeats,
+                args.limit,
+            )
+        return
+
+    if args.command in {"generate-qwen", "judge-qwen"}:
+        client = QwenChatClient(
+            args.model_id,
+            args.revision,
+            device=args.device,
+            enable_thinking=False,
+        )
+        model_label = qwen_model_label(args.model_id, args.revision)
+        if args.command == "generate-qwen":
+            run_generation(
+                args.input,
+                args.output,
+                client,
+                model_label,
+                args.temperature,
+                args.max_tokens,
+                args.seed,
+                args.limit,
+            )
+        else:
+            run_judging(
+                args.input,
+                args.generations,
+                args.output,
+                client,
+                model_label,
                 args.temperature,
                 args.max_tokens,
                 args.seed,
