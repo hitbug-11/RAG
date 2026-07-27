@@ -321,6 +321,8 @@ Query Rewrite 前后对照移至第 3 天，与 Multi-query、Context Compressio
 
 复现所提供论文的核心机制，并建立可靠的所有权验证评价流程。
 
+> 2026-07-27 用户指定提前审计并运行论文补充代码，因此暂时从第 3 天切入第 4 天预实验；第 3 天任务不作完成标记。已新增独立的 Contriever 检索门控入口，在单张 L20 上完成 NQ 全部 100 个验证问题：水印问题 target CoT Hit@5 为 0.98，但普通问题 target 泄漏率为 0.37，严格双向门控成功率为 0.32。用户进一步指定采用论文的 GPT-4 路线，已实现 `Contriever Top-5 → gpt-4-0613 Generator → gpt-4-0613 Judge → VSR/H/配对 Wilcoxon` 的分阶段、可断点续跑入口和 12 个离线测试。BEIR NQ 语料已通过 SHA-256 校验并生成普通/水印各 100 条 Prompt，400 次 Rank/上下文一致性检查错误为 0。目前本地与服务器没有 `OPENAI_API_KEY`，服务器也没有论文 LLaMA-3(8B) 权重或 HF token，尚未产生真实端到端结果。论文命题 3.3 的加号公式与理想验证对及 Table 2 不一致，代码以标准配对差作为主检验并保留原公式审计。所有要求真实生成或评测结果的任务继续保持未勾选。代码和说明见 `scripts/RAG_C/reproduce_retrieval.py`、`scripts/RAG_C/reproduce_end_to_end.py`、`scripts/RAG_C/REPRODUCTION.md`。
+
 ### 时间安排
 
 #### 0:00-1:00：数据准备

@@ -32,13 +32,13 @@
 
 | 项目 | 状态 |
 |---|---|
-| 当前阶段 | 第 2 个学习日已完成，准备进入 LangChain/LangGraph |
-| 当前任务 | 第 3 天：将透明 Retriever 接入 LangChain 并保存编排 Trace |
-| 下一交付物 | `langchain_rag.py`、`adaptive_rag.py` 与攻击面分析 |
+| 当前阶段 | 第 2 天已完成；按用户要求提前进行 RAG© 补充代码预复现 |
+| 当前任务 | 按论文 GPT-4 路线完成 RAG© 的 Generator、Detector 与统计验证；第 3 天暂缓但未跳过 |
+| 下一交付物 | 配置 API 访问后生成 RAG© Trace、目标推理检测与 Wilcoxon 统计结果 |
 | 详细计划 | [plan.md](./plan.md) |
 | 研究主线 | RAG 知识库版权保护与所有权验证 |
 
-最后更新：2026-07-25
+最后更新：2026-07-27
 
 ## 7 天学习进度
 
@@ -46,8 +46,8 @@
 |---|---|---|---|
 | Day 1 | RAG 与 LLM 的完整协同机制 | 已完成 | 透明 Vanilla RAG、30 条 Trace 与故障归因 |
 | Day 2 | 先进检索与水印检索几何 | 已完成 | 四路检索、ANN、水印迁移与完整消融 |
-| Day 3 | LangChain、LangGraph 与先进 RAG | 未开始 | LangChain 与 Adaptive RAG |
-| Day 4 | 小规模复现 RAG© | 未开始 | RAG©-Lite 与统计验证 |
+| Day 3 | LangChain、LangGraph 与先进 RAG | 未开始（暂缓） | LangChain 与 Adaptive RAG |
+| Day 4 | 小规模复现 RAG© | 进行中（检索门控完成） | RAG©-Lite 与统计验证 |
 | Day 5 | 知识库盗用与去水印攻击 | 未开始 | 攻击矩阵与鲁棒性结果 |
 | Day 6 | RAG 知识库版权保护技术谱系 | 未开始 | Canary 基线与论文矩阵 |
 | Day 7 | 研究问题、预实验与提案 | 未开始 | Research Proposal |
@@ -99,6 +99,7 @@ RAG/
 │   ├── run_rag_condition_matrix.py # 5 问题的 30 条生成条件矩阵
 │   ├── run_rrf_hybrid_retrieval.py # BM25 + Dense RRF 对照实验
 │   ├── run_server_python.sh # 约束服务器缓存和临时目录
+│   ├── RAG_C/               # 论文补充代码、审计说明与检索门控复现
 │   └── smoke_dense_retrieval.py # Qwen3 + FAISS 冒烟实验
 ├── results/                 # 检索、水印、消融、PCA 图与结果
 ├── tests/                   # 检索组件与实验指标的自动化测试
@@ -130,7 +131,11 @@ RAG/
 
 ## 复现说明
 
-当前已完成透明 Dense RAG、BM25、RRF Hybrid 和 Qwen3 Reranker。纠正后的水印实验使用 20 组普通业务查询、仅增加触发词的控制查询和专用语义验证查询，Canary 不复制业务答案。进一步完成 FAISS Flat/HNSW/IVF、句内位置以及字符级 Size × Overlap 九组消融。联合消融显示完整证据保留率从 0.50 提升到 1.00，并严格限制最终 Reranker Verification Hit@1；PCA 与原始 Cosine 同时揭示长 Chunk 的 Dense 稀释效应。教程与复现命令见 [透明 Dense RAG：从文档切分到证据约束生成](./notes/03-transparent-dense-rag.md) 和 [先进检索与重排：从 BM25 到 Hybrid RAG](./notes/04-advanced-retrieval-and-reranking.md)。实验持续记录：
+当前已完成透明 Dense RAG、BM25、RRF Hybrid 和 Qwen3 Reranker。纠正后的水印实验使用 20 组普通业务查询、仅增加触发词的控制查询和专用语义验证查询，Canary 不复制业务答案。进一步完成 FAISS Flat/HNSW/IVF、句内位置以及字符级 Size × Overlap 九组消融。联合消融显示完整证据保留率从 0.50 提升到 1.00，并严格限制最终 Reranker Verification Hit@1；PCA 与原始 Cosine 同时揭示长 Chunk 的 Dense 稀释效应。
+
+2026-07-27 开始审计 RAG© 官方补充代码，并用固定 revision 的 Contriever 在单张 L20 上运行全部 100 个 NQ 验证问题。水印问题 target CoT Hit@5 为 0.98，普通问题 target 泄漏率为 0.37，严格双向门控成功率为 0.32。随后按用户指定实现论文的 `Contriever Top-5 → gpt-4-0613 Generator → gpt-4-0613 Judge → VSR/H/配对 Wilcoxon` 分阶段入口；BEIR NQ 已重建普通/水印各 100 条 Prompt，400 次排名一致性检查全部通过。真实 API 运行仍因缺少 `OPENAI_API_KEY` 而未开始。审计、命令、公式不一致和限制见 [RAG© 补充代码复现说明](./scripts/RAG_C/REPRODUCTION.md)。
+
+教程与基础复现命令见 [透明 Dense RAG：从文档切分到证据约束生成](./notes/03-transparent-dense-rag.md) 和 [先进检索与重排：从 BM25 到 Hybrid RAG](./notes/04-advanced-retrieval-and-reranking.md)。实验持续记录：
 
 - Python 与依赖版本；
 - 数据来源和许可证；
@@ -150,6 +155,8 @@ RAG/
 
 ## 最近更新
 
+- 2026-07-27：按论文 GPT-4 路线新增 RAG© 端到端入口，支持 BEIR NQ 上下文重建、API 断点续跑、附录 B.3 Judge、VSR/FPR/H/Answer Accuracy、95% 区间和配对 Wilcoxon；发现命题 3.3 的加号与理想验证行为矛盾，结果将同时保留标准配对差主检验和原公式审计；真实 API 运行等待凭据；
+- 2026-07-27：审计 RAG© 补充代码并新增可审计的 Contriever 检索门控入口；单张 L20 完成 NQ 全部 100 个验证问题，水印问题 target CoT Hit@5 为 0.98，普通问题 target 泄漏率为 0.37，严格门控成功率为 0.32；明确该结果不等同于 Generator VSR 或 Wilcoxon 所有权验证；
 - 2026-07-25：完成字符级 256/512/1024 Size × 0/64/128 Overlap 九组边界压力实验与 PCA；2,160 条四路 Trace 显示完整证据保留率从 0.50 提升到 1.00，并严格限制最终 Reranker Hit@1；第 2 个学习日全部完成；
 - 2026-07-25：完成水印句首/句中/句尾受控消融；三个位置保持相同句子集合与字符长度，共生成 720 条四路 Trace；BM25 Rank/Score/Gap 完全不变，四路 Trigger-only Hit@5 与 Verification Hit@1 均为 1.0，但 Dense 与 Reranker 呈现不同的 Margin 位置偏好；
 - 2026-07-25：完成 FAISS Flat/HNSW/IVF 两层对照；真实 32 Chunk 上三种索引保持相同 Top-10 与 Verification Hit@1，8,192 向量压力集验证 `efSearch`/`nprobe` 的速度—召回权衡；当前小语料继续使用精确 `IndexFlatIP`；

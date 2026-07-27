@@ -357,14 +357,14 @@ RAG/
 
 ## 当前学习状态
 
-- 最后更新：2026-07-25
+- 最后更新：2026-07-27
 - 当前计划：`plan.md`
-- 当前阶段：第 2 个学习日已完成，准备进入第 3 天 LangChain、LangGraph 与先进 RAG
-- 当前任务：第 3 天从 LangChain DocumentLoader、TextSplitter、Embedding/VectorStore 与自定义 Retriever 接口开始
-- 已完成任务：第 2 天全部完成；已实现 Dense、BM25、RRF Hybrid、Qwen3 Reranker，完成三条件水印迁移、FAISS ANN、位置、Chunk Size × Overlap 及 PCA 实验；联合消融的九组 Reranker Verification Hit@1 均等于完整证据保留率
-- 当前交付物：四条透明检索管线；20 个不复制业务答案的 Canary；FAISS 两层对照；720 条位置 Trace；2,160 条切分联合消融 Trace；合并后的 `retrieval_ablation.csv`；PCA 坐标、位移汇总和 `embedding_visualization.png`；包含八个实验章节的 Day 2 教程
-- 当前薄弱点：边界压力集是合成且有意覆盖切分失败，不代表自然语料概率；Canary 触发词和口令仍显式；PCA 前两维只解释约 37.5% 方差；尚未观察 Query Rewrite、Multi-query、Context Compression 与 Adaptive Routing 对水印的影响
-- 下一步：进入第 3 天，先把第 1、2 天的自定义 Retriever 接入 LangChain 接口，保存 Callback/Trace，再实现 Query Rewrite 与 Context Compression 对照
+- 当前阶段：第 2 天已完成；按用户要求暂时提前进行第 4 天 RAG© 补充代码复现，第 3 天任务保留为未完成
+- 当前任务：按用户指定的论文路线，在已完成的 Contriever 检索门控基础上运行 `gpt-4-0613` Generator 与 GPT-4 target-CoT Judge，再计算 Answer Accuracy/Harmfulness、VSR/FPR 和配对 Wilcoxon
+- 已完成任务：完成 RAG© 补充包静态审计、输入一致性测试和 NQ 100 问题检索门控复现；水印问题 target CoT Hit@5 为 0.98，普通问题 target 泄漏率为 0.37，严格门控成功率为 0.32；实现论文 GPT-4 分阶段端到端入口及 12 个离线测试；重建普通/水印各 100 条 GPT Prompt，400 次 Rank/上下文一致性检查错误为 0；这些结果尚不计作 Day 4 完成
+- 当前交付物：补充代码审计说明；固定 Contriever revision、输入 SHA-256 和环境信息的检索入口；论文 Generator/Judge/评测入口；12 个本地/服务器测试；NQ 100 问题共 200 条检索 Trace 和 200 条生成输入
+- 当前薄弱点：官方附件未提供完整 RAG©-O 优化实现；部分结果 JSON 丢失原生成文本；本地和服务器均无 `OPENAI_API_KEY`，且 `gpt-4-0613` 已 deprecated；服务器也没有论文 LLaMA-3(8B) 权重或 HF token，尚无真实 Generator VSR、Judge 稳定性、FPR、Harmfulness、Wilcoxon 和置信区间；论文命题 3.3 的加号与理想验证对及 Table 2 不一致；第 3 天 Query Rewrite/Compression 仍未开展
+- 下一步：在用户提供具备 `gpt-4-0613` 访问权限的环境变量后运行普通/水印生成与 Judge，保存多阶段 Trace 并计算配对检验；随后回到第 3 天编排攻击面对照
 - Git 状态：已初始化 `main` 分支并跟踪 `origin/main`；初始学习计划和维护文档已提交并推送
 
 ## 变更记录
@@ -400,3 +400,6 @@ RAG/
 - 2026-07-25：完成 FAISS Flat/HNSW/IVF 两层对照；真实 32 Chunk 上三种索引结果一致，8,192 向量压力集验证 `efSearch`/`nprobe` 的速度—召回权衡；保留合成簇结构有利于 IVF 的边界说明，当前小语料继续使用 `IndexFlatIP`。
 - 2026-07-25：完成水印句首/句中/句尾受控消融；720 条四路 Trace 显示 BM25 对换序严格不敏感，Dense 与 Reranker 的 Margin 偏好方向不同，但三位置下 Trigger-only Hit@5 与 Verification Hit@1 均保持 1.0；下一实验进入 Chunk Size 与 Overlap。
 - 2026-07-25：完成字符级 Size × Overlap 九组联合消融和 PCA；2,160 条 Trace 证明完整证据保留率严格限制最终 Reranker Hit@1，长 Chunk 同时降低边界断裂并稀释 Dense 表示；第 2 个学习日全部验收完成，下一阶段进入 LangChain/LangGraph 编排。
+- 2026-07-27：按用户要求提前审计 RAG© 官方补充材料；确认附件是未完整发布的审稿代码快照，RAG©-O 优化实现不完整，原入口混有硬编码和不可审计结果。
+- 2026-07-27：新增独立 Contriever 检索门控复现入口和 5 个测试，在单张 L20 上完成 NQ 100 问题；水印 target Hit@5 为 0.98、普通 target 泄漏率为 0.37、严格门控成功率为 0.32，暂不将 Retriever Hit 当作论文 VSR。
+- 2026-07-27：按用户指定改为论文 GPT-4 路线，新增 BEIR 上下文重建、`gpt-4-0613` Generator、附录 B.3 Judge、断点续跑和 VSR/FPR/H/Wilcoxon 入口；离线测试增至 12 个，完成 200 条 Prompt 和 400 次排名一致性检查。确认命题 3.3 的加号无法区分理想验证对，代码同时保存标准配对差主检验与原公式审计；真实 API 运行等待凭据。
